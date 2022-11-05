@@ -1,1 +1,150 @@
-ready.
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="/css/site.css" />
+</head>
+
+<body>
+    <header>
+        <div>
+            <nav>
+                <h4>Home Automation Notes</h4>
+                Updated: 11/4/2022
+            </nav>
+        </div>
+    </header>
+    <hr />
+    <div>
+        <table id="readings" class="table table-striped">
+            <tr>
+                <td><b>Topic</b></td>
+                <td><b>Notes</b></td>
+            </tr>
+            <tr>
+                <td><b>Home Assistant (HA)</b></td>
+                <td>
+                    <p>
+                        I keep current on the latest HA Docker images and run the Docker service on Debian 11.<br />
+                        The majority of my integrations rely on Z-Wave devices and MQTT. I currently use the following
+                        HA integrations:
+                    <ul>
+                        <li>Z-Wave JS</li>
+                        <ul>
+                            <li>AEON Labs Z-Stick Gen5</li>
+                        </ul>
+                        <li>MQTT</li>
+                        <ul>
+                            <li>Mosquitto</li>
+                        </ul>
+                        <li>Mobile App</li>
+                        <ul>
+                            <li>Android</li>
+                        </ul>
+                        <li>VLC media player via Telnet</li>
+                        <li>Bluetooth</li>
+                        <ul>
+                            <li>Edimax BT 5.0 USB</li>
+                        </ul>
+                        <ul>
+                            <li>Govee</li>
+                        </ul>
+                    </ul>
+                    </p>
+                </td>
+            <tr>
+                <td><b>Automations</b></td>
+                <td>
+                    Automations are split between HA automation scripts and scenes, and custom code using a custom
+                    replacement for HA's MQTT Statestream in the repo <a
+                        href="https://github.com/idatum/hass2mqtt">hass2mqtt</a><br />
+                    This allows me to implement my own logic on state changes using various custom MQTT clients. Most
+                    run on Docker along with HA.
+                </td>
+            </tr>
+            <tr>
+                <td><b>Digi XBee Zigbee</b></td>
+                <td>
+                    The majority of my DIY sensor projects use <a
+                        href="https://www.digi.com/products/embedded-systems/digi-xbee/rf-modules/2-4-ghz-rf-modules/xbee-zigbee"></a>Digi
+                    XBee Modules</a>.
+                    The repo <a href="https://github.com/idatum/xbeesharp">xbeesharp</a> has a .NET 6 C# implementation
+                    handling subscribing and publishing to MQTT and translating to and from XBee packets.<br />
+                    A specific application of an XBee3 module is in the <a
+                        href="https://github.com/idatum/xbee3-laundry">xbee3-laundry</a> repo. Using the module's
+                    Micropython, it monitors my home's laundry by monitoring the electrical current usage
+                    on both washer and dryer circuits.
+                </td>
+            </tr>
+            <tr>
+            <tr>
+                <td><b>SDR using a YARD Stick One and rfcat</b></td>
+                <td>
+                    The repo <a href="https://github.com/idatum/labrfcat">labrfcat</a> has an rflib Python client to
+                    control my Minka Aire fan. I created a simple MQTT client daemon that allows me to send commands
+                    from HA using MQTT.
+                </td>
+            </tr>
+            <tr>
+                <td><b>SDR using rtl_sdr</b></td>
+                <td>
+                    I use a few 433 MHz battery powered sensors. These are convenient for deploying to different
+                    locations.<br />
+                    I run a simple rtl_433 daemon on a Raspberry Pi 3 and publish to MQTT. Here are the command line
+                    settings:
+                    <p>
+                        <code>
+                        filter="-R -12 -R -23 -R -60 -R -68 -R -82 -R -86 -R -89 -R -90 -R -95 -R -156 -R -186 -R -197"<br/>
+                        freq_opt="-f 433.92M"<br/>
+                        rtl_433 \<br/>
+        -d 1 \<br/>
+        -F "mqtt://localhost:1883,user=&lt;username&gt;,pass=&lt;password&gt;,retain=0,events=rtl_433[/model][/id][/channel]" \<br/>
+        -M level -M protocol \<br/>
+        -C customary \<br/>
+        -K host=&lt;hostname&gt; \<br/>
+        $freq_opt
+                    </code>
+                    </p>
+                    Sensors are integrated into HA using MQTT integration.
+                </td>
+            </tr>
+            <td><b>Device tracking using Ubqiuti WiFi APs</b></td>
+            <td>
+                The repo <a href="https://github.com/idatum/unifi_tracker">unifi_tracker</a> polls each Ubiquity AP
+                and
+                publishes MAC client addresses to MQTT. I use HA's MQTT device_tracker integration for presence
+                detection. In my experience this solution has been more reliable than HA's. Plus I prefer to
+                use SSH keys
+                to connect to the APs instead of having to store passwords.
+            </td>
+            </tr>
+            <tr>
+                <td><b>Notifications</b></td>
+                <td>I have custom Signal CLI and Twilio clients running that receive MQTT messages. This allows a simple
+                    integration with HA via MQTT service to send status to my phone when I'm away.</td>
+            </tr>
+            <tr>
+                <td><b>DIY garage door opener</b></td>
+                <td>I use an XBee device and a 3.3VDC relay along with a modified LiftMaster 883LM Security+ 2.0 MyQ
+                    push button to replace the MyQ cloud solution. I found MyQ to generally be awful 😞 There are
+                    several threads on <a href="https://community.home-assistant.io/t/myq-alternatives/261805">HA
+                        Community Forum</a> on how to replace MyQ.<br />
+                    <a href="https://github.com/idatum/xbeesharp">xbeesharp</a> allows me to integrate with HA via MQTT
+                    publish service.<br />
+                    I use a Z-Wave door sensor to detect the state of the garage door.
+                </td>
+            </tr>
+            <tr>
+                <td><b>Remote access to HA</b></td>
+                <td>From my Android phone using Juice SSH client, I do an SSH tunnel (key auth) from HA's port to my
+                    phone's localhost. This is a simple and secure way to access HA remotely.</td>
+            </tr>
+        </table>
+    </div>
+    <hr />
+    &copy; 2022
+</body>
+
+</html>
