@@ -7,16 +7,17 @@
     <link rel="stylesheet" href="/css/site.css" />
 </head>
 
-<body>
-    <header>
-        <div>
-            <nav>
-                <h4>Home Automation Notes</h4>
-                Updated: November 2022
-            </nav>
-        </div>
-    </header>
-    <hr />
+<body class="container">
+    <div>
+        <p class="lead">
+        <h4>Home Automation Notes</h4>
+        A few notes to share on home automation projects I've implemented and integrated with <a
+            href="https://www.home-assistant.io/">Home Assistant.</a>
+        </p>
+        <p>
+            <small>Updated: November 2022</small>
+        </p>
+    </div>
     <div>
         <table id="readings" class="table table-striped">
             <tr>
@@ -53,6 +54,9 @@
                         </ul>
                     </ul>
                     </p>
+                    <p>
+                        Ultimately I have only a few HA integrations which minimizes risks during upgrades. With most DIY integrations using MQTT, there's also little chance of any breaking changes.
+                    </p>
                 </td>
             <tr>
                 <td><b>Automations</b></td>
@@ -79,7 +83,6 @@
                 </td>
             </tr>
             <tr>
-            <tr>
                 <td><b>SDR using a YARD Stick One and rfcat</b></td>
                 <td>
                     The repo <a href="https://github.com/idatum/labrfcat">labrfcat</a> has an rflib Python client to
@@ -92,38 +95,29 @@
                 <td>
                     I use a few 433 MHz battery powered sensors. These are convenient for deploying to different
                     locations.<br />
-                    I run a simple rtl_433 daemon on a Raspberry Pi 3 and publish to MQTT. Here are the command line
-                    settings:
-                    <p>
-                        <code>
-                        filter="-R -12 -R -23 -R -60 -R -68 -R -82 -R -86 -R -89 -R -90 -R -95 -R -156 -R -186 -R -197"<br/>
-                        freq_opt="-f 433.92M"<br/>
+                    I run a simple <a href="https://github.com/merbanan/rtl_433">rtl_433</a> daemon on a Raspberry Pi 3 that publishes to MQTT.
+                    Here are the command line
+                    settings:<br />
+                    <code>
                         rtl_433 \<br/>
-        -d 1 \<br/>
-        -F "mqtt://localhost:1883,user=&lt;username&gt;,pass=&lt;password&gt;,retain=0,events=rtl_433[/model][/id][/channel]" \<br/>
-        -M level -M protocol \<br/>
-        -C customary \<br/>
-        -K host=&lt;hostname&gt; \<br/>
-        $freq_opt
+                        -d 1 \<br/>
+                        -F "mqtt://localhost:1883,user=<i>&lt;username&gt;</i>,pass=<i>&lt;password&gt;</i>,retain=0,events=rtl_433[/model][/id][/channel]" \<br/>
+                        -M level -M protocol \<br/>
+                        -C customary \<br/>
+                        -R -12 -R -23 -R -60 -R -68 -R -82 -R -86 -R -89 -R -90 -R -95 -R -156 -R -186 -R -197 \<br/>
+                        -f 433.92M<br/>
                     </code>
-                    </p>
-                    Sensors are integrated into HA using MQTT integration.
+                    Sensors are integrated into HA using MQTT.
                 </td>
             </tr>
-            <td><b>Device tracking using Ubqiuti WiFi APs</b></td>
-            <td>
-                The repo <a href="https://github.com/idatum/unifi_tracker">unifi_tracker</a> polls each Ubiquity AP
-                and
-                publishes MAC client addresses to MQTT. I use HA's MQTT device_tracker integration for presence
-                detection. In my experience this solution has been more reliable than HA's. Plus I prefer to
-                use SSH keys
-                to connect to the APs instead of having to store passwords.
-            </td>
-            </tr>
             <tr>
-                <td><b>Notifications</b></td>
-                <td>I have custom Signal CLI and Twilio clients running that receive MQTT messages. This allows a simple
-                    integration with HA via MQTT service to send status to my phone when I'm away.</td>
+                <td><b>Device tracking using Ubiquity WiFi APs</b></td>
+                <td>
+                    The repo <a href="https://github.com/idatum/unifi_tracker">unifi_tracker</a> polls each Unifi AP
+                    and publishes MAC client addresses to MQTT. I use HA's MQTT device_tracker integration for presence
+                    detection. In my experience this solution has been more reliable than HA's. Plus I prefer to
+                    use SSH keys to connect to the APs instead of having to store passwords.
+                </td>
             </tr>
             <tr>
                 <td><b>DIY garage door opener</b></td>
@@ -137,13 +131,17 @@
                 </td>
             </tr>
             <tr>
+                <td><b>Notifications</b></td>
+                <td>I have custom <a href="https://github.com/AsamK/signal-cli">Signal CLI</a> and Twilio clients running that receive MQTT messages. This allows a simple
+                    integration with HA via MQTT service to send status to my phone when I'm away.</td>
+            </tr>
+            <tr>
                 <td><b>Remote access to HA</b></td>
                 <td>From my Android phone using Juice SSH client, I do an SSH tunnel (key auth) from HA's port to my
                     phone's localhost. This is a simple and secure way to access HA remotely.</td>
             </tr>
         </table>
     </div>
-    <hr />
     <a href="https://github.com/idatum/idatum.github.io">idatum.github.io repo</a>
     &copy; 2022
 </body>
