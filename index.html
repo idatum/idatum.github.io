@@ -143,22 +143,19 @@
             <tr>
                 <td><b>Bluetooth sensors</b></td>
                 <td>
-                    The Edimax BT-8500 USB Bluetooth adapter I use on Debian 11 for HA integration required a
-                    configuration
-                    change.<br />
-                    Initially working for a few hours, eventually I received an error and HA could no longer connect to
-                    the adapter:<br />
+                    I recently replaced an Edimax BT-8500 USB Bluetooth adapter with an XDO BT802 <code>rtl8761b_fw.bin</code> firmware adapter on Debian 11 for HA integration.
+                    I'm hoping the external antenna with increased range gives me more options for future Bluetooth sensors.<br/>
+                    If you see the following error:<br />
                     <code>
                         bluetoothd[3418168]: profiles/sap/server.c:sap_server_register() Sap driver initialization failed.
                     </code><br />
-                    Digging for a solution, I found adding the following to
-                    /etc/systemd/system/bluetooth.service.d/override.conf works:<br />
+                    I found adding the following to /etc/systemd/system/bluetooth.service.d/override.conf removes the message:<br />
                     <code>
                         [Service]<br/>
                         ExecStart=<br/>
                         ExecStart=/usr/libexec/bluetooth/bluetoothd --noplugin=sap
                     </code><br />
-                    The only Bluetooth sensor I have is a Govee H5074001 temperature/humidity for monitoring a humidor.
+                    The only Bluetooth sensor I have is a <a href="https://www.home-assistant.io/integrations/govee_ble/">Govee H5074001</a> temperature/humidity for monitoring a humidor.
                 </td>
             </tr>
             <tr>
