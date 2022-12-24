@@ -15,7 +15,7 @@
             href="https://www.home-assistant.io/">Home Assistant.</a>. I hope any of this helps!
         </p>
         <p>
-            <small>Updated: November 2022</small>
+            <small>Updated: December 2022</small>
         </p>
     </div>
     <div>
@@ -143,19 +143,13 @@
             <tr>
                 <td><b>Bluetooth sensors</b></td>
                 <td>
-                    I recently replaced an Edimax BT-8500 USB Bluetooth adapter with an XDO BT802 <code>rtl8761b_fw.bin</code> firmware adapter on Debian 11 for HA integration.
-                    I'm hoping the external antenna with increased range gives me more options for future Bluetooth sensors.<br/>
-                    If you see the following error:<br />
-                    <code>
-                        bluetoothd[3418168]: profiles/sap/server.c:sap_server_register() Sap driver initialization failed.
-                    </code><br />
-                    I found adding the following to /etc/systemd/system/bluetooth.service.d/override.conf removes the message:<br />
-                    <code>
-                        [Service]<br/>
-                        ExecStart=<br/>
-                        ExecStart=/usr/libexec/bluetooth/bluetoothd --noplugin=sap
-                    </code><br />
-                    The only Bluetooth sensor I have is a <a href="https://www.home-assistant.io/integrations/govee_ble/">Govee H5074001</a> temperature/humidity for monitoring a humidor.
+                    I recently removed the official HA Bluetooth and Govee integrations and switched to using an MQTT Python client on a Raspberry Pi 3+. 
+                    Bluetooth on my Debian 11 using an 
+                    XDO BT802 USB adapter with rtl8761b_fw.bin firmware has proven too unstable in my experience. Ultimately, I eventually (week or so) have to reboot the server even after 
+                    power cycleing the adapter (<code>bluetoothctl off/on</code>).<br/>
+                    My simple Python MQTT client uses <a href="https://github.com/Home-Is-Where-You-Hang-Your-Hack/sensor.goveetemp_bt_hci">sensor.goveetemp_bt_hci</a> 
+                    and <a href="https://github.com/TheCellule/python-bleson projects">python-bleson</a> projects. These modules have proven solid.</br>
+                    The only Bluetooth sensors I have are <a href="https://www.home-assistant.io/integrations/govee_ble/">Govee H5074001</a> for temperature/humidity (e.g. for monitoring a humidor).
                 </td>
             </tr>
             <tr>
