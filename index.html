@@ -145,10 +145,10 @@
                 <td>
                     I recently removed the official HA Bluetooth and Govee integrations and switched to using an MQTT Python client on a Raspberry Pi 3+. 
                     Bluetooth on my Debian 11 using an 
-                    XDO BT802 USB adapter with rtl8761b_fw.bin firmware has proven too unstable in my experience. Ultimately, I eventually (week or so) have to reboot the server even after 
-                    power cycleing the adapter (<code>bluetoothctl off/on</code>).<br/>
+                    XDO BT802 USB adapter with rtl8761b_fw.bin firmware has proven too unstable in my experience. Ultimately, after week or so I have to reboot the server even after 
+                    power cycling the adapter (<code>bluetoothctl off/on</code>).<br/>
                     My simple Python MQTT client uses <a href="https://github.com/Home-Is-Where-You-Hang-Your-Hack/sensor.goveetemp_bt_hci">sensor.goveetemp_bt_hci</a> 
-                    and <a href="https://github.com/TheCellule/python-bleson projects">python-bleson</a> projects. These modules have proven solid.</br>
+                    and <a href="https://github.com/TheCellule/python-bleson">python-bleson</a> projects. These modules have proven solid.<br/>
                     The only Bluetooth sensors I have are <a href="https://www.home-assistant.io/integrations/govee_ble/">Govee H5074001</a> for temperature/humidity (e.g. for monitoring a humidor).
                 </td>
             </tr>
