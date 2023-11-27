@@ -1,2 +1,2 @@
 # idatum.github.io
-Notes on home lab.
+[Notes on home lab.](https://idatum.net)
