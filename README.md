@@ -1,2 +1,2 @@
 # idatum.github.io
-Notes on home automation.
+Notes on home lab.
