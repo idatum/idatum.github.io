@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Lab Notes</title>
+    <title>Lab Notes | articles in the "Home automation" category</title>
     <link rel="shortcut icon" type="image/png" href="/favicon.png">
     <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
     <link rel="stylesheet" href="/theme/css/main.css" type="text/css" />
@@ -16,7 +16,9 @@
     <header>
         <nav style="overflow: hidden;">
             <ul>
-                <li class="selected"><a href="/">Home</a></li>
+
+                <li class="ephemeral selected"><a href="/category/home-automation.html">Home automation</a></li>
+                <li><a href="/">Home</a></li>
             </ul>
         </nav>
         <div class="header_box" style="height: 50px">
@@ -26,35 +28,7 @@
         </div>
     </header>
     <div id="wrapper">
-        <div id="content">            <h4 class="date">Nov 26, 2023</h4>
-
-            <article class="post">
-                <h2 class="title">
-                    <a href="/experimenting-with-rtl-sdr-on-netbsd-10.html" rel="bookmark" title="Permanent Link to &quot;Experimenting with RTL-SDR on NetBSD 10&quot;">Experimenting with RTL-SDR on NetBSD 10</a>
-                </h2>
-
-                
-                
-
-                <p>The goal of this experiment is to build and run <a href="https://github.com/osmocom/rtl-sdr">rtl-sdr</a> tools (specifically rtl_tcp) and <a href="https://github.com/flightaware/dump1090">dump1090</a> (aka dump1090-fa) on a Pine64 Rock64 running <a href="http://netbsd.org/releases/formal-10/NetBSD-10.0.html">NetBSD 10</a>. The repo <a href="https://github.com/idatum/rtl-sdr-bsd">rtl-sdr-bsd</a> has the patches I created.</p>
-<p>My Rock64 is positioned closest to antennas I have mounted outside of my house. It has 2 RTL-SDR USB devices attached to the USB3 port, one for ADS-B and the second as a source for <a href="https://github.com/merbanan/rtl_433">rtl_433</a> ISM band sensor decoding (e.g. weather station).</p>
-<p>For rtl_433, I was unable to run this on NetBSD. It is related to the use of <code>rtlsdr_read_async</code>. With this rtl-sdr.patch applied, I can build rtl_tcp on the Rock64 and remotely connect a separate Linux device running <code>rtl_433 -d rtl_tcp:[rock64]</code>  to use the rtl_tcp protocol. The patch adds a <code>-S</code> option to specify using <code>rtlsdr_read_sync</code> in a pthread e.g. <code>rtl_tcp -d 0 -S -a [rock64]</code>. This has been working successfully in my testing across a 5ghz WiFi connection.</p>
-<p>For ADS-B, the dump1090-fa.patch patch allows me to build dump1090-fa on the Rock64. This just patches the Makefile. Running this on the Rock64, I have both <a href="https://www.adsbexchange.com/">ADS-B Exchange</a> and <a href="https://www.flightaware.com/adsb">Piaware</a> running in Docker containers that connect remotely. This has also been successful in my testing, but I'm not clear why. It still uses <code>rtlsdr_read_async</code> but I don't see any issues until I try to terminate the process.</p>
-<h4>More details</h4>
-<p>To get started creating the rtl_433 patch, I first looked at the patches included with the <a href="https://pkgsrc.org/">pkgsrc</a> ham/rtl-sdr package. I then applied those patches to the cloned rtl-sdr Github repo (tagged at v2.0.1). I then made changes to rtl_tcp. Applying the patches from pkgsrc explains why rtl_fm is also modied in my patch.</p>
-<p>For dump1090-fa, the Github repo was tagged at v9.0.</p>
-<p>To use, clone each repo and apply the patch separately for each (<code>patch -p1</code>). You need gmake for dump1090-fa and cmake for rtl-sdr.</p>
-<h4>TODO</h4>
-<p>I chose to patch only rtl_tcp for now since I'm fine running rtl_433 on another Linux device (e.g. in Docker). I patched rtl_tcp by adding a pthread that essentially uses that thread instance how <code>rtlsdr_read_async</code> was used unpatched. I can also similarly experiment with pthreads in other rtl-sdr tools or even rtl_433 directly.</p>
-<p>Even though dump1090-fa uses <code>rtlsdr_read_async</code>, I didn't have to patch any source to run it. I just patched the Makefile. I need to understand why having a pthread to handle <code>rtlsdr_read_async</code> and handling the fifo dequeue on the main process thread is stable on NetBSD 10.</p>
-<p>I also noticed I can run rtl_adsb unpatched and there might be some learnings there as well.</p>
-<p>Ultimately, from what I understand, there needs to be improvements to usb(4) on NetBSD 10 to make these RTL-SDR programs work unpatched.</p>
-                <div class="clear"></div>
-
-                <div class="info">
-                    &nbsp;&middot;&nbsp;<a href="/category/netbsd.html" rel="tag">NetBSD</a>
-                </div>
-            </article>            <h4 class="date">Dec 24, 2022</h4>
+        <div id="content">            <h4 class="date">Dec 24, 2022</h4>
 
             <article class="post">
                 <h2 class="title">
