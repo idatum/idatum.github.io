@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Lab Notes | Articles by @joelp@mastodon.sdf.org</title>
+    <link rel="shortcut icon" type="image/png" href="/favicon.png">
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/theme/css/main.css" type="text/css" />
+    <link rel="stylesheet" href="/theme/css/pygments.css" type="text/css" />
+    <meta name="generator" content="Pelican" />
+    <meta name="description" content="" />
+    <meta name="author" content="@joelp@mastodon.sdf.org" />
+</head>
+<body>
+    <header>
+        <nav style="overflow: hidden;">
+            <ul>
+
+                <li class="ephemeral selected"><a href="/author/joelpmastodonsdforg2.html">@joelp@mastodon.sdf.org</a></li>
+                <li><a href="/">Home</a></li>
+            </ul>
+        </nav>
+        <div class="header_box" style="height: 50px">
+        <h1><a href="/">
+            <image src='' class="avatar" width="50px" /><span class="site_title">Lab Notes</span>
+            </a></h1></div>
+        </div>
+    </header>
+    <div id="wrapper">
+        <div id="content">            <h4 class="date">Dec 24, 2022</h4>
+
+            <article class="post">
+                <h2 class="title">
+                    <a href="/home-automation-notes.html" rel="bookmark" title="Permanent Link to &quot;Home Automation Notes&quot;">Home Automation Notes</a>
+                </h2>
+
+                
+                
+
+                <p>A few notes to share on home automation projects I've implemented and integrated with Home Assistant. I hope any of this helps!</p>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Home Assistant (HA)</td>
+<td>I keep current on the latest HA Docker image running on a Debian 12 AMD64 server (old i7 Lenovo desktop). The majority of my integrations rely on Z-Wave devices and MQTT, and the HA MQTT integration.</td>
+</tr>
+<tr>
+<td>Z-Wave JS</td>
+<td>I run in Docker attached to a AEON Labs Z-Stick Gen5.</td>
+</tr>
+<tr>
+<td>HA Automations</td>
+<td>Automations are split between HA automation scripts and scenes, and custom code including a replacement for HA's MQTT Statestream: <a href="https://github.com/idatum/hass2mqtt">hass2mqtt</a>. Ultimately I have only a few HA integrations which minimizes risks during upgrades.<br/>With most DIY integrations using MQTT, there's also little chance of any breaking changes. This allows me to implement my own logic on state changes using various custom MQTT clients. Most run on Docker along with HA.</td>
+</tr>
+<tr>
+<td>MQTT</td>
+<td>Mosquitto</td>
+</tr>
+<tr>
+<td>HA App</td>
+<td>Android</td>
+</tr>
+<tr>
+<td>Media</td>
+<td>VLC player via Telnet connected to HA.</td>
+</tr>
+<tr>
+<td>Bluetooth</td>
+<td>I use a simple Python daemon running on a couple Raspberry Pi 3 devices to track known Bluetooth MAC addresses and publish to MQTT.</td>
+</tr>
+<tr>
+<td>BLE</td>
+<td>A simple Python MQTT client running on a couple Raspberry Pi 3 devices uses <a href="https://github.com/Home-Is-Where-You-Hang-Your-Hack/sensor.goveetemp_bt_hci">sensor.goveetemp_bt_hci</a> and <a href="https://github.com/TheCellule/python-bleson">python-bleson projects</a>. These modules have proven solid. The only Bluetooth sensors I have are Govee H5074001 for temperature/humidity (e.g. for monitoring a humidor).</td>
+</tr>
+<tr>
+<td>ZigBee</td>
+<td>The majority of my DIY sensor projects use <a href="https://www.digi.com/products/embedded-systems/digi-xbee/rf-modules/2-4-ghz-rf-modules/xbee-zigbee">Digi XBee Zigbee Modules</a>. The repo <a href="https://github.com/idatum/xbeesharp">xbeesharp</a> has a .NET 7 C# implementation handling subscribing and publishing to MQTT and translating to and from XBee packets. I then define MQTT sensors in HA.<br/>A specific application of an XBee3 module is <a href="https://github.com/idatum/xbee3-laundry">xbee3-laundry</a>. Using the module's Micropython, it monitors my home's laundry by monitoring the electrical current usage on both washer and dryer circuits.<br/>I also use an XBee for my DIY garage door opener: An XBee device and a 3.3VDC relay along with a modified LiftMaster 883LM Security+ 2.0 MyQ push button replaces the MyQ cloud solution. I found MyQ to generally be awful 😟 I use a Z-Wave door sensor to detect the state of the garage door. There are several threads on HA Community Forum on how to replace MyQ.<br/>Using xbeesharp for these projects allows me to integrate with HA via MQTT publish service.</td>
+</tr>
+<tr>
+<td>SDR</td>
+<td><a href="https://github.com/idatum/labrfcat">labrfcat</a> has an rflib Python client to control a Minka Aire fan using a <a href="https://greatscottgadgets.com/yardstickone/">YARD Stick One</a>. I created a simple MQTT client daemon that sends commands from HA using MQTT.<br/>I use a few 433 MHz battery powered sensors. These are convenient for deploying to different locations. I run a simple <a href="https://github.com/merbanan/rtl_433">rtl_433</a> daemon on a Raspberry Pi 3 that publishes to MQTT. I use a <a href="https://www.nooelec.com/store/sdr/nesdr-smart-sdr.html">Nooelec RTL-SDR adapter</a> and a 433mhz antenna. Sensors are integrated into HA using MQTT via rtl_433.</td>
+</tr>
+<tr>
+<td>Device tracking</td>
+<td><a href="https://github.com/idatum/hass2mqtt">unifi_tracker</a> polls each of my Ubiquity Unifi APs and publishes MAC client addresses to MQTT. I define MQTT device_tracker entities to integrate with HA. In my experience this solution has been more reliable than HA's. Plus I prefer to use SSH keys to connect to the APs instead of having to store passwords. The HA MQTT device_tracker entities I defined are used for presence detection.</td>
+</tr>
+<tr>
+<td>Notifications</td>
+<td>I use <a href="https://github.com/AsamK/signal-cli">Signal CLI</a> and a Twilio client that publish/subscribe to MQTT. This allows a simple integration with HA for receiving status or sending commands to and from my phone when I'm away without having to keep a remote connection to my HA server.</td>
+</tr>
+<tr>
+<td>Remote access to HA</td>
+<td>From my Android phone using Juice SSH client, I do an SSH tunnel (key auth) from HA's port to my phone's localhost. This is a simple and secure way to access HA remotely on-demand.</td>
+</tr>
+</tbody>
+</table>
+                <div class="clear"></div>
+
+                <div class="info">
+                    &nbsp;&middot;&nbsp;<a href="/category/home-automation.html" rel="tag">Home automation</a>
+                </div>
+            </article>
+
+                <div class="clear"></div>
+                <div class="pages">
+
+                    <a href="/author/joelpmastodonsdforg.html" class="prev_page">&larr;&nbsp;Previous</a>
+
+
+                    <span>Page 2 of 2</span>
+                </div>
+
+            <div class="clear"></div>
+            <footer>
+                <p>
+                <a rel="me" href="https://mastodon.sdf.org/@joelp">© 2023 mastodon.sdf.org/@joelp</a>
+            </footer>
+        </div>
+        <div class="clear"></div>
+    </div>
+</body>
+</html>

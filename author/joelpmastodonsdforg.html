@@ -28,7 +28,307 @@
         </div>
     </header>
     <div id="wrapper">
-        <div id="content">            <h4 class="date">Nov 26, 2023</h4>
+        <div id="content">            <h4 class="date">Dec 17, 2023</h4>
+
+            <article class="post">
+                <h2 class="title">
+                    <a href="/listening-to-flight-details-as-aircraft-pass-overhead.html" rel="bookmark" title="Permanent Link to &quot;Listening to flight details as aircraft pass overhead&quot;">Listening to flight details as aircraft pass overhead</a>
+                </h2>
+
+                
+                
+
+                <p>Here are some notes to share on how I use my ADS-B RTL-SDR receiver, <a href="https://github.com/idatum/adsb2mqtt">adsb2mqtt</a> and an MQTT broker, and text-to-speech (TTS) to play details of nearby passing aircraft.</p>
+<p>I live near a busy airport. I can see aircraft flying low enough to make out and guess the airline and model. Wouldn't it be cool to have my computer tell me instead of guessing? Also, it would be nice to know the departure/arrival country and city.</p>
+<h4>Publishing MQTT messages with ADS-B details</h4>
+<p>As explained in <a href="https://www.idatum.net/experimenting-with-rtl-sdr-on-netbsd-10.html">Experimenting with RTL-SDR on NetBSD 10</a> I run the FlightAware maintained <a href="https://github.com/flightaware/dump1090">dump1090-fa</a> on a NetBSD 10 in an outdoor enclosure that is close to my 1090mhz ADS-B antenna.</p>
+<p>I run <a href="https://github.com/idatum/adsb2mqtt/blob/main/Dockerfile">adsb2mqtt</a> in a Docker container (Debian 12 server) that connects to the NetBSD dump1090-fa port 30003. That repo has details on parameters to adjust which aircraft are processed (i.e. ones you can see from your own location).</p>
+<p>This setup has been stable for several months since I switched from running everying on an RPi3 (yes, .NET 7 works on a Raspberry Pi), but you can use anything to host dump1090-fa or run adsb2mqtt with .NET 7.</p>
+<p>Ultimately, I'm now able to process ADS-B messages and publish them to my MQTT broker -- any MQTT client can subscribe to messages of locally passing aircaft.</p>
+<h4>Enhancing with flight and airline information</h4>
+<p>Now that I can have an MQTT client subscribe to ADS-B info, I can receive altitude and distance, latitude/longitude, speed, heading, and flight and aircraft (ICAO) numbers.</p>
+<p>In order to get more details such as departure/arrival city, more aircraft details, and airline information, we need to access a database of that information. I use a combination FlightAware's JSON files that come with dump1090-fa (<a href="https://github.com/flightaware/dump1090/tree/master/public_html/db">dump1090/public_html/db</a>) and FlightAware's AeroAPI. AeroAPI has a free tier based on the number of requests which is more than enough for my use.</p>
+<p>I have this implemented in a Python class <a href="#adsbspeech-python-class">AdsbSpeech</a> that I use in a <a href="https://pypi.org/project/paho-mqtt/">Paho MQTT</a> Python client (again, I have this running in Docker). The <code>flight</code> parameter is the JSON payload from the adsb2mqtt message.</p>
+<p>With this, I have Python code that can generate a text sentence describing the flight. Using this in a Python MQTT client subscribed to adsb2mqtt messages, I can publish back an MQTT message so any MQTT client that can do TTS can speak that sentence.</p>
+<p>As an optimization, I make sure I only publish that message every 30 seconds though, as ADS-B info comes in quickly. For an airline passing over at ~5000ft MSL that's about 2 or 3 total messages before it passes outside of my 2.3 nautical mile radius filter.</p>
+<h4>Using Azure for TTS</h4>
+<p>Now that I can generate a sentence describing a passing flight, any TTS solution works. If you have Home Assistant Assist set up, that would probably work well (although I never tried).</p>
+<p>I use Azure Speech service to generate a wave file. It's cheap and easy to use, and I like their voices. Here's an abbreviated Python code snippet that generates a temporary wave file:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">tempfile</span> <span class="kn">import</span> <span class="n">NamedTemporaryFile</span>
+<span class="kn">from</span> <span class="nn">azure.cognitiveservices.speech</span> <span class="kn">import</span> <span class="n">SpeechConfig</span><span class="p">,</span> <span class="n">SpeechSynthesizer</span>
+<span class="kn">from</span> <span class="nn">azure.cognitiveservices.speech.audio</span> <span class="kn">import</span> <span class="n">AudioOutputConfig</span>
+
+<span class="n">Speech_config</span> <span class="o">=</span> <span class="n">SpeechConfig</span><span class="p">(</span><span class="n">subscription</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;COGS_KEY&#39;</span><span class="p">],</span> <span class="n">region</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;COGS_REGION&#39;</span><span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">create_wave</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+    <span class="n">filename</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">NamedTemporaryFile</span><span class="p">(</span><span class="nb">dir</span><span class="o">=</span><span class="s1">&#39;/var/www/wav&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">.wav&quot;</span>
+    <span class="n">audio_config</span> <span class="o">=</span> <span class="n">AudioOutputConfig</span><span class="p">(</span><span class="n">filename</span><span class="o">=</span><span class="n">filename</span><span class="p">)</span>
+    <span class="n">ssml</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;&lt;speak version=&quot;1.0&quot; xmlns=&quot;http://www.w3.org/2001/10/synthesis&quot; </span><span class="se">\</span>
+<span class="s1">        xmlns:mstts=&quot;https://www.w3.org/2001/mstts&quot; xml:lang=&quot;en-US&quot;&gt; </span><span class="se">\</span>
+<span class="s1">        &lt;voice name=&quot;en-US-JennyNeural&quot;&gt; </span><span class="se">\</span>
+<span class="s1">        &lt;mstts:express-as style=&quot;newscast&quot;&gt; </span><span class="se">\</span>
+<span class="s1">            &lt;prosody rate=&quot;+25.00%&quot;&gt; </span><span class="se">\</span>
+<span class="s1">            </span><span class="si">{</span><span class="n">text</span><span class="si">}</span><span class="s1"> </span><span class="se">\</span>
+<span class="s1">            &lt;/prosody&gt; </span><span class="se">\</span>
+<span class="s1">        &lt;/mstts:express-as&gt; </span><span class="se">\</span>
+<span class="s1">        &lt;/voice&gt; </span><span class="se">\</span>
+<span class="s1">        &lt;/speak&gt;&#39;</span>
+    <span class="n">synthesizer</span> <span class="o">=</span> <span class="n">SpeechSynthesizer</span><span class="p">(</span><span class="n">speech_config</span><span class="o">=</span><span class="n">Speech_config</span><span class="p">,</span> <span class="n">audio_config</span><span class="o">=</span><span class="n">audio_config</span><span class="p">)</span>
+    <span class="n">_</span> <span class="o">=</span> <span class="n">synthesizer</span><span class="o">.</span><span class="n">speak_ssml_async</span><span class="p">(</span><span class="n">ssml</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">filename</span>
+</code></pre></div>
+
+<p>One more optimization that I do is make sure I only generate a single wave file available to all clients that happen to be running. For example, I have a client on the upstairs balcony, in WSL2 on my Win11 laptop, even one on my Android phone running <a href="https://github.com/termux">termux with termux-api</a>.</p>
+<p>What I do is create the TTS wave file in a Python Flask app (again, Docker) and publish the wave filename. Now MQTT clients can be really simple and no need to have keys to my Azure account etc on other clients. Here's a snippet of a shell script I run in WSL2 on my laptop that will play the wave for passing aircraft:</p>
+<div class="highlight"><pre><span></span><code><span class="ch">#!/bin/sh</span>
+
+<span class="k">while</span><span class="w"> </span><span class="nb">true</span>
+<span class="k">do</span>
+<span class="w">    </span>mosquitto_sub<span class="w"> </span>-v<span class="w"> </span>-t<span class="w"> </span><span class="s2">&quot;ADSB/speech/wave&quot;</span><span class="w"> </span>-u<span class="w"> </span>mosquitto_sub<span class="w"> </span>-P<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>~/.mosquitto_sub<span class="k">)</span><span class="w"> </span>-h<span class="w"> </span>mqtt.host<span class="w"> </span>-p<span class="w"> </span><span class="m">8883</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="k">while</span><span class="w"> </span><span class="nb">read</span><span class="w"> </span>msg
+<span class="w">    </span><span class="k">do</span>
+<span class="w">        </span><span class="nv">wave</span><span class="o">=</span><span class="k">$(</span><span class="nb">echo</span><span class="w"> </span><span class="nv">$msg</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">&#39;{print $2}&#39;</span><span class="k">)</span>
+<span class="w">        </span>curl<span class="w"> </span>--silent<span class="w"> </span>--output<span class="w"> </span>-<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: text/plain&quot;</span><span class="w"> </span>--data<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">wave</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;http:myserver/speech/wave&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>paplay
+<span class="w">    </span><span class="k">done</span>
+<span class="k">done</span>
+</code></pre></div>
+
+<p>In this case, it's just about getting audio to work on Linux (no small feat).</p>
+<h4>Summary</h4>
+<ol>
+<li>dump1090-fa feeds adsb2mqtt raw ADS-B data; adsb2mqtt generates MQTT messages for nearby flights, filtered by distance from my home.</li>
+<li>An MQTT client uses AdsbSpeech class to enhance data and generate a sentence to be used for TTS.</li>
+<li>Another MQTT client uses Azure Speech to generate and share via HTTP a generated wave file and publishes the filename to MQTT.</li>
+<li>Various devices can use simple client tools like mosquitto_sub and curl to retrieve and play the wave file. </li>
+</ol>
+<p>It's a simple pleasure to sit on my balcony and enjoy some plane spotting, now with details played back from my computer.</p>
+<h4>AdsbSpeech Python class</h4>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">http.client</span>
+<span class="kn">from</span> <span class="nn">base64</span> <span class="kn">import</span> <span class="n">b64encode</span>
+
+<span class="k">class</span> <span class="nc">AdsbSpeech</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> 
+                 <span class="n">log</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;adsb_speech&#39;</span><span class="p">),</span>
+                 <span class="n">local_city</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                 <span class="n">skip_general_aviation</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">aeroapi_user</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">aeroapi_key</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">aircraft_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span> <span class="o">=</span> <span class="n">log</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">flight_origin_dest_type</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exclude_icao</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unknown_origin</span> <span class="o">=</span> <span class="s1">&#39;Unknown&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_local_city</span> <span class="o">=</span> <span class="n">local_city</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_aeroapi_user</span> <span class="o">=</span> <span class="n">aeroapi_user</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_aeroapi_key</span> <span class="o">=</span> <span class="n">aeroapi_key</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_aircraft_dir</span> <span class="o">=</span> <span class="n">aircraft_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_skip_general_aviation</span> <span class="o">=</span> <span class="n">skip_general_aviation</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">local_city</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_city</span>
+
+    <span class="nd">@local_city</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">local_city</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_local_city</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">skip_general_aviation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_skip_general_aviation</span>
+
+    <span class="nd">@skip_general_aviation</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">skip_general_aviation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_skip_general_aviation</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">get_icao</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flight</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">flight</span><span class="p">[</span><span class="s1">&#39;icao&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">get_nautical_miles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flight</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">flight</span><span class="p">[</span><span class="s1">&#39;nm&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">get_latitude</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flight</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">flight</span><span class="p">[</span><span class="s1">&#39;lat&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">get_flight_text</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flight</span><span class="p">):</span>
+        <span class="n">icao</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_icao</span><span class="p">(</span><span class="n">flight</span><span class="p">)</span>
+        <span class="n">ident</span> <span class="o">=</span> <span class="n">flight</span><span class="p">[</span><span class="s1">&#39;flt&#39;</span><span class="p">]</span>
+        <span class="n">dir_deg</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">flight</span><span class="p">[</span><span class="s1">&#39;dir&#39;</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">dir_deg</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">dir_deg</span> <span class="o">==</span> <span class="mi">360</span> <span class="k">else</span> <span class="n">dir_deg</span>
+        <span class="n">heading</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">n</span> <span class="o">+</span> <span class="s1">&#39; &#39;</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">dir_deg</span><span class="p">)])</span>
+        <span class="n">text0</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="n">origin</span><span class="p">,</span> <span class="n">dest</span><span class="p">,</span> <span class="nb">type</span> <span class="o">=</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ident</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;N&#39;</span><span class="p">:</span> 
+            <span class="n">origin</span><span class="p">,</span> <span class="n">dest</span><span class="p">,</span> <span class="nb">type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_flight_origin_dest_type</span><span class="p">(</span><span class="n">ident</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">origin</span> <span class="ow">and</span> <span class="p">(</span><span class="n">origin</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_city</span> <span class="ow">or</span> <span class="n">origin</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">unknown_origin</span><span class="p">)</span> <span class="ow">and</span> <span class="n">dest</span><span class="p">:</span>
+            <span class="n">text0</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;to </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">elif</span> <span class="n">origin</span> <span class="ow">and</span> <span class="p">(</span><span class="n">dest</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_city</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">dest</span><span class="p">):</span>
+            <span class="n">text0</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;from </span><span class="si">{</span><span class="n">origin</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">elif</span> <span class="n">origin</span><span class="p">:</span>
+            <span class="n">text0</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;from </span><span class="si">{</span><span class="n">origin</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">airline</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_skip_general_aviation</span> <span class="ow">or</span> <span class="n">ident</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;N&#39;</span><span class="p">:</span>
+            <span class="n">airline_code</span> <span class="o">=</span> <span class="n">ident</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span>
+            <span class="n">airline</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_airline_name</span><span class="p">(</span><span class="n">airline_code</span><span class="p">,</span> <span class="n">short</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">airline</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">airline</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="n">ident</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="nb">type</span><span class="si">}</span><span class="s2"> at </span><span class="si">{</span><span class="n">flight</span><span class="p">[</span><span class="s1">&#39;alt&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> heading </span><span class="si">{</span><span class="n">heading</span><span class="si">}{</span><span class="n">text0</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_skip_general_aviation</span> <span class="ow">and</span> <span class="n">ident</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;N&#39;</span><span class="p">:</span>
+            <span class="c1"># Drop general aviation tail #s</span>
+            <span class="n">skip_text</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Skipping flight </span><span class="si">{</span><span class="n">text</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">skip_text</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">exclude_icao</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">icao</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;FLIGHT </span><span class="si">{</span><span class="n">text</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">text</span>
+
+    <span class="k">def</span> <span class="nf">_get_aeroapi_jresult</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">url</span><span class="p">):</span>
+        <span class="n">userPass</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_aeroapi_user</span><span class="si">}</span><span class="s1">:</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_aeroapi_key</span><span class="si">}</span><span class="s1">&#39;</span>
+        <span class="n">basicAuth</span> <span class="o">=</span> <span class="n">b64encode</span><span class="p">(</span><span class="n">userPass</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;ascii&#39;</span><span class="p">)</span>
+        <span class="n">headers</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;Authorization&#39;</span> <span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;Basic </span><span class="si">{</span><span class="n">basicAuth</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">}</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">http</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">HTTPSConnection</span><span class="p">(</span><span class="s1">&#39;flightxml.flightaware.com&#39;</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">h</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="s2">&quot;GET&quot;</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">)</span>
+        <span class="n">resp</span> <span class="o">=</span> <span class="n">h</span><span class="o">.</span><span class="n">getresponse</span><span class="p">()</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+        <span class="n">h</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">resp</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_get_aeroapi_flightex</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ident</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;READING: AeroAPI flight info for </span><span class="si">{</span><span class="n">ident</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_aeroapi_jresult</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;/json/FlightXML2/FlightInfoEx?ident=</span><span class="si">{</span><span class="n">ident</span><span class="si">}</span><span class="s1">&amp;howMany=1&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_get_aeroapi_aircrafttype</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aircraft_type</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;READING: AeroAPI aircraft type info for </span><span class="si">{</span><span class="n">aircraft_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_aeroapi_jresult</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;/json/FlightXML2/AircraftType?type=</span><span class="si">{</span><span class="n">aircraft_type</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_get_aeroapi_airlineinfo</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">airline_code</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;READING: AeroAPI airline info for </span><span class="si">{</span><span class="n">airline_code</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_aeroapi_jresult</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;/json/FlightXML2/AirlineInfo?airlineCode=</span><span class="si">{</span><span class="n">airline_code</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_write_flightinfoex</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="n">ident</span><span class="p">,</span> <span class="n">flightInfo</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fn</span><span class="p">,</span> <span class="s1">&#39;w+&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s1">&#39;error&#39;</span> <span class="ow">in</span> <span class="n">flightInfo</span><span class="p">:</span>
+                <span class="n">trimmedInfo</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;FlightInfoExResult&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;flights&#39;</span><span class="p">:</span>
+                                <span class="p">[{</span><span class="s1">&#39;ident&#39;</span><span class="p">:</span> <span class="n">ident</span><span class="p">,</span>
+                                    <span class="s1">&#39;aircrafttype&#39;</span><span class="p">:</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+                                    <span class="s1">&#39;origin&#39;</span><span class="p">:</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+                                    <span class="s1">&#39;destination&#39;</span><span class="p">:</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+                                    <span class="s1">&#39;originName&#39;</span><span class="p">:</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+                                    <span class="s1">&#39;originCity&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">unknown_origin</span><span class="p">,</span>
+                                    <span class="s1">&#39;destinationName&#39;</span><span class="p">:</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+                                    <span class="s1">&#39;destinationCity&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">unknown_origin</span>
+                                <span class="p">}]}}</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">flight0</span> <span class="o">=</span> <span class="n">flightInfo</span><span class="p">[</span><span class="s1">&#39;FlightInfoExResult&#39;</span><span class="p">][</span><span class="s1">&#39;flights&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">trimmedInfo</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;FlightInfoExResult&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;flights&#39;</span><span class="p">:</span>
+                                <span class="p">[{</span><span class="s1">&#39;ident&#39;</span><span class="p">:</span> <span class="n">ident</span><span class="p">,</span>
+                                    <span class="s1">&#39;aircrafttype&#39;</span><span class="p">:</span> <span class="n">flight0</span><span class="p">[</span><span class="s1">&#39;aircrafttype&#39;</span><span class="p">]</span> <span class="k">if</span> <span class="s1">&#39;aircrafttype&#39;</span> <span class="ow">in</span> <span class="n">flight0</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+                                    <span class="s1">&#39;origin&#39;</span><span class="p">:</span> <span class="n">flight0</span><span class="p">[</span><span class="s1">&#39;origin&#39;</span><span class="p">],</span>
+                                    <span class="s1">&#39;destination&#39;</span><span class="p">:</span> <span class="n">flight0</span><span class="p">[</span><span class="s1">&#39;destination&#39;</span><span class="p">],</span>
+                                    <span class="s1">&#39;originName&#39;</span><span class="p">:</span> <span class="n">flight0</span><span class="p">[</span><span class="s1">&#39;originName&#39;</span><span class="p">],</span>
+                                    <span class="s1">&#39;originCity&#39;</span><span class="p">:</span> <span class="n">flight0</span><span class="p">[</span><span class="s1">&#39;originCity&#39;</span><span class="p">],</span>
+                                    <span class="s1">&#39;destinationName&#39;</span><span class="p">:</span> <span class="n">flight0</span><span class="p">[</span><span class="s1">&#39;destinationName&#39;</span><span class="p">],</span>
+                                    <span class="s1">&#39;destinationCity&#39;</span><span class="p">:</span> <span class="n">flight0</span><span class="p">[</span><span class="s1">&#39;destinationCity&#39;</span><span class="p">]</span>
+                                <span class="p">}]}}</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">trimmedInfo</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_get_aircraft_type_name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aircrafttype</span><span class="p">):</span>
+        <span class="n">fn</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_aircraft_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;aircraft/</span><span class="si">{</span><span class="n">aircrafttype</span><span class="si">}</span><span class="s1">.json&#39;</span><span class="p">)</span>
+        <span class="n">jaircraft</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">fn</span><span class="p">):</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">aircraft</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">aircraft</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">None</span>
+                <span class="n">jaircraft</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">aircraft</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_aeroapi_key</span><span class="p">:</span>
+            <span class="n">jaircraft</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_aeroapi_aircrafttype</span><span class="p">(</span><span class="n">aircrafttype</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">jaircraft</span><span class="p">)</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fn</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fa</span><span class="p">:</span>
+                <span class="n">fa</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">jaircraft</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">aircrafttype</span>
+        <span class="n">jresult</span> <span class="o">=</span> <span class="n">jaircraft</span><span class="p">[</span><span class="s1">&#39;AircraftTypeResult&#39;</span><span class="p">]</span>
+        <span class="n">manufacturer</span> <span class="o">=</span> <span class="n">jresult</span><span class="p">[</span><span class="s1">&#39;manufacturer&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">manufacturer</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">manufacturer</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">jresult</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_get_airline_name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">airline_code</span><span class="p">,</span> <span class="n">short</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">fn</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_aircraft_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;airline/</span><span class="si">{</span><span class="n">airline_code</span><span class="si">}</span><span class="s1">.json&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_aircraft_dir</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_aircraft_dir</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span>
+        <span class="n">jairline</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">fn</span><span class="p">):</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">airline</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">airline</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">None</span>
+                <span class="n">jairline</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">airline</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_aeroapi_key</span><span class="p">:</span>
+            <span class="n">jairline</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_aeroapi_airlineinfo</span><span class="p">(</span><span class="n">airline_code</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">jairline</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">None</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">jairline</span><span class="p">)</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fn</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fa</span><span class="p">:</span>
+                <span class="n">fa</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">jairline</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="s1">&#39;AirlineInfoResult&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">jairline</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">jresult</span> <span class="o">=</span> <span class="n">jairline</span><span class="p">[</span><span class="s1">&#39;AirlineInfoResult&#39;</span><span class="p">]</span>
+        <span class="n">shortname</span> <span class="o">=</span> <span class="n">jresult</span><span class="p">[</span><span class="s1">&#39;shortname&#39;</span><span class="p">]</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">shortname</span> <span class="k">if</span> <span class="n">shortname</span> <span class="k">else</span> <span class="n">jresult</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+        <span class="n">country</span> <span class="o">=</span> <span class="n">jresult</span><span class="p">[</span><span class="s1">&#39;country&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">country</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">short</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">country</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_parse_origin_dest_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flightInfo</span><span class="p">,</span> <span class="n">origin_dest_type</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s1">&#39;error&#39;</span> <span class="ow">in</span> <span class="n">flightInfo</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="n">flight</span> <span class="o">=</span> <span class="n">flightInfo</span><span class="p">[</span><span class="s1">&#39;FlightInfoExResult&#39;</span><span class="p">][</span><span class="s1">&#39;flights&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="s1">&#39;originCity&#39;</span> <span class="ow">in</span> <span class="n">flight</span><span class="p">:</span>
+            <span class="n">origin_dest_type</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">flight</span><span class="p">[</span><span class="s1">&#39;originCity&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">,</span> <span class="s1">&#39; &#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s1">&#39;destinationCity&#39;</span> <span class="ow">in</span> <span class="n">flight</span><span class="p">:</span>
+            <span class="n">origin_dest_type</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">flight</span><span class="p">[</span><span class="s1">&#39;destinationCity&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">,</span> <span class="s1">&#39; &#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s1">&#39;aircrafttype&#39;</span> <span class="ow">in</span> <span class="n">flight</span><span class="p">:</span>
+            <span class="n">origin_dest_type</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">flight</span><span class="p">[</span><span class="s1">&#39;aircrafttype&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">_get_flight_origin_dest_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ident</span><span class="p">):</span>
+        <span class="n">origin_dest_type</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">ident</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">flight_origin_dest_type</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">flight_origin_dest_type</span><span class="p">[</span><span class="n">ident</span><span class="p">]</span>
+        <span class="c1"># Use a dir that persists between reboots</span>
+        <span class="n">fn</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;/var/tmp/flights/</span><span class="si">{</span><span class="n">ident</span><span class="si">}</span><span class="s1">.json&#39;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">fn</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;READING: Existing flight info for </span><span class="si">{</span><span class="n">ident</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                    <span class="n">flightFile</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span>
+                    <span class="n">loadedFlight</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">flightFile</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_parse_origin_dest_type</span><span class="p">(</span><span class="n">loadedFlight</span><span class="p">,</span> <span class="n">origin_dest_type</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">flight_origin_dest_type</span><span class="p">[</span><span class="n">ident</span><span class="p">]</span> <span class="o">=</span> <span class="n">origin_dest_type</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_aeroapi_key</span><span class="p">:</span>
+                <span class="n">flightInfo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_aeroapi_flightex</span><span class="p">(</span><span class="n">ident</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">flightInfo</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_parse_origin_dest_type</span><span class="p">(</span><span class="n">flightInfo</span><span class="p">,</span> <span class="n">origin_dest_type</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">flight_origin_dest_type</span><span class="p">[</span><span class="n">ident</span><span class="p">]</span> <span class="o">=</span> <span class="n">origin_dest_type</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_write_flightinfoex</span><span class="p">(</span><span class="n">fn</span><span class="p">,</span> <span class="n">ident</span><span class="p">,</span> <span class="n">flightInfo</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">origin_dest_type</span>
+</code></pre></div>
+                <div class="clear"></div>
+
+                <div class="info">
+                    &nbsp;&middot;&nbsp;<a href="/category/ads-b.html" rel="tag">ADS-B</a>
+                </div>
+            </article>            <h4 class="date">Nov 26, 2023</h4>
 
             <article class="post">
                 <h2 class="title">
@@ -56,85 +356,16 @@
                 <div class="info">
                     &nbsp;&middot;&nbsp;<a href="/category/netbsd.html" rel="tag">NetBSD</a>
                 </div>
-            </article>            <h4 class="date">Dec 24, 2022</h4>
-
-            <article class="post">
-                <h2 class="title">
-                    <a href="/home-automation-notes.html" rel="bookmark" title="Permanent Link to &quot;Home Automation Notes&quot;">Home Automation Notes</a>
-                </h2>
-
-                
-                
-
-                <p>A few notes to share on home automation projects I've implemented and integrated with Home Assistant. I hope any of this helps!</p>
-<table>
-<thead>
-<tr>
-<th>Topic</th>
-<th>Notes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Home Assistant (HA)</td>
-<td>I keep current on the latest HA Docker image running on a Debian 12 AMD64 server (old i7 Lenovo desktop). The majority of my integrations rely on Z-Wave devices and MQTT, and the HA MQTT integration.</td>
-</tr>
-<tr>
-<td>Z-Wave JS</td>
-<td>I run in Docker attached to a AEON Labs Z-Stick Gen5.</td>
-</tr>
-<tr>
-<td>HA Automations</td>
-<td>Automations are split between HA automation scripts and scenes, and custom code including a replacement for HA's MQTT Statestream: <a href="https://github.com/idatum/hass2mqtt">hass2mqtt</a>. Ultimately I have only a few HA integrations which minimizes risks during upgrades.<br/>With most DIY integrations using MQTT, there's also little chance of any breaking changes. This allows me to implement my own logic on state changes using various custom MQTT clients. Most run on Docker along with HA.</td>
-</tr>
-<tr>
-<td>MQTT</td>
-<td>Mosquitto</td>
-</tr>
-<tr>
-<td>HA App</td>
-<td>Android</td>
-</tr>
-<tr>
-<td>Media</td>
-<td>VLC player via Telnet connected to HA.</td>
-</tr>
-<tr>
-<td>Bluetooth</td>
-<td>I use a simple Python daemon running on a couple Raspberry Pi 3 devices to track known Bluetooth MAC addresses and publish to MQTT.</td>
-</tr>
-<tr>
-<td>BLE</td>
-<td>A simple Python MQTT client running on a couple Raspberry Pi 3 devices uses <a href="https://github.com/Home-Is-Where-You-Hang-Your-Hack/sensor.goveetemp_bt_hci">sensor.goveetemp_bt_hci</a> and <a href="https://github.com/TheCellule/python-bleson">python-bleson projects</a>. These modules have proven solid. The only Bluetooth sensors I have are Govee H5074001 for temperature/humidity (e.g. for monitoring a humidor).</td>
-</tr>
-<tr>
-<td>ZigBee</td>
-<td>The majority of my DIY sensor projects use <a href="https://www.digi.com/products/embedded-systems/digi-xbee/rf-modules/2-4-ghz-rf-modules/xbee-zigbee">Digi XBee Zigbee Modules</a>. The repo <a href="https://github.com/idatum/xbeesharp">xbeesharp</a> has a .NET 7 C# implementation handling subscribing and publishing to MQTT and translating to and from XBee packets. I then define MQTT sensors in HA.<br/>A specific application of an XBee3 module is <a href="https://github.com/idatum/xbee3-laundry">xbee3-laundry</a>. Using the module's Micropython, it monitors my home's laundry by monitoring the electrical current usage on both washer and dryer circuits.<br/>I also use an XBee for my DIY garage door opener: An XBee device and a 3.3VDC relay along with a modified LiftMaster 883LM Security+ 2.0 MyQ push button replaces the MyQ cloud solution. I found MyQ to generally be awful 😟 I use a Z-Wave door sensor to detect the state of the garage door. There are several threads on HA Community Forum on how to replace MyQ.<br/>Using xbeesharp for these projects allows me to integrate with HA via MQTT publish service.</td>
-</tr>
-<tr>
-<td>SDR</td>
-<td><a href="https://github.com/idatum/labrfcat">labrfcat</a> has an rflib Python client to control a Minka Aire fan using a <a href="https://greatscottgadgets.com/yardstickone/">YARD Stick One</a>. I created a simple MQTT client daemon that sends commands from HA using MQTT.<br/>I use a few 433 MHz battery powered sensors. These are convenient for deploying to different locations. I run a simple <a href="https://github.com/merbanan/rtl_433">rtl_433</a> daemon on a Raspberry Pi 3 that publishes to MQTT. I use a <a href="https://www.nooelec.com/store/sdr/nesdr-smart-sdr.html">Nooelec RTL-SDR adapter</a> and a 433mhz antenna. Sensors are integrated into HA using MQTT via rtl_433.</td>
-</tr>
-<tr>
-<td>Device tracking</td>
-<td><a href="https://github.com/idatum/hass2mqtt">unifi_tracker</a> polls each of my Ubiquity Unifi APs and publishes MAC client addresses to MQTT. I define MQTT device_tracker entities to integrate with HA. In my experience this solution has been more reliable than HA's. Plus I prefer to use SSH keys to connect to the APs instead of having to store passwords. The HA MQTT device_tracker entities I defined are used for presence detection.</td>
-</tr>
-<tr>
-<td>Notifications</td>
-<td>I use <a href="https://github.com/AsamK/signal-cli">Signal CLI</a> and a Twilio client that publish/subscribe to MQTT. This allows a simple integration with HA for receiving status or sending commands to and from my phone when I'm away without having to keep a remote connection to my HA server.</td>
-</tr>
-<tr>
-<td>Remote access to HA</td>
-<td>From my Android phone using Juice SSH client, I do an SSH tunnel (key auth) from HA's port to my phone's localhost. This is a simple and secure way to access HA remotely on-demand.</td>
-</tr>
-</tbody>
-</table>
-                <div class="clear"></div>
-
-                <div class="info">
-                    &nbsp;&middot;&nbsp;<a href="/category/home-automation.html" rel="tag">Home automation</a>
-                </div>
             </article>
+
+                <div class="clear"></div>
+                <div class="pages">
+
+
+                    <a href="/author/joelpmastodonsdforg2.html" class="next_page">Next&nbsp;&rarr;</a>
+
+                    <span>Page 1 of 2</span>
+                </div>
 
             <div class="clear"></div>
             <footer>
