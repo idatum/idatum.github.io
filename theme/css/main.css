@@ -292,7 +292,7 @@ nav li {
 }
 nav a {
     display: block;
-    padding: 4.5em 10px 10px 10px;
+    padding: 1.5em 1px 10px 10px;
 }
 nav a:hover {
     background-color: var(--tab-bg-hover);
@@ -304,7 +304,7 @@ nav li.selected a {
 }
 
 header .header_box {
-/*    padding-top: 4.5em; */
+    padding-top: 4.5em;
     
 }
 .site_title {
