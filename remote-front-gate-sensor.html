@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+        <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Lab Notes | Remote front gate sensor.</title>
+    <link rel="shortcut icon" type="image/png" href="./favicon.png">
+    <link rel="shortcut icon" type="image/x-icon" href="./favicon.ico">
+    <link rel="stylesheet" href="./theme/css/main.css" type="text/css" />
+    <link rel="stylesheet" href="./theme/css/pygments.css" type="text/css" />
+    <meta name="generator" content="Pelican" />
+    <meta name="description" content="" />
+    <meta name="author" content="@joelp@mastodon.sdf.org" />
+
+</head>
+<body>
+    <header>
+        <nav style="overflow: hidden;">
+            <ul>
+                <li><a href="./">Home</a></li>
+                    <li><a href="./category/ads-b.html">ADS-B</a></li>
+                    <li><a href="./category/bsd.html">BSD</a></li>
+                    <li class="active"><a href="./category/home-automation.html">Home automation</a></li>
+            </ul>
+        </nav>
+        <div>
+        <h1><a href="./">
+            <image src='' class="avatar" width="50px" /><span class="site_title">Lab Notes</span>
+            </a></h1></div>
+            <h2>Various personal weekend projects</h2>
+        </div>
+    </header>
+    <div id="wrapper">
+        <div id="content">    <h4 class="date">Jan 13, 2024</h4>
+
+<article class="post">
+    <h2 class="title">
+        <a href="./remote-front-gate-sensor.html" rel="bookmark" title="Permanent Link to &quot;Remote front gate sensor.&quot;">Remote front gate sensor.</a>
+    </h2>
+
+                
+    <p>I have a couple use cases for detecting when my house front gate is opened. At night, opening the gate triggers the front porch lights. During the day, I know when packages arrive. When I'm away, I get a picture of the front gate from my doorbell camera.</p>
+<p>Here are notes on using a battery powered ESP-01s to notify when the house front gate is opened.</p>
+<h3>Hardware choice</h3>
+<p>The gate is about 21 feet (~6.5 meters) from the house. That's not too far, but I didn't want to run wires to power a sensor. I decided to use a 3V CR123A lithium battery. I don't live in an area of extreme temperatures, so it was worth a try.</p>
+<p>The plan was to have a sensor detect when a magnet attached to the gate door swings past a mechanical <a href="https://www.sparkfun.com/products/10601">reed switch</a> -- pretty simple. I needed a microcontroller (MCU) that can sleep using minimal battery power and be triggered by the reed switch closing. I also needed that MCU to communicate its state wirelessly.</p>
+<p>My first choice was a Digi XBee3 Zigbee 3.0 module. I've had good experience with them, such as <a href="https://github.com/idatum/xbee3-laundry">monitoring my laundry</a>. The XBee3 can sleep at very low power as a Zigbee end device, and has a pin that can wake it up. Unfortunately, I seemed to end up fighting the Zigbee 3.0 spec more than anything. It can be hours or even days before the gate is triggered, and after a certain period the XBee3 would not associate with a nearby Zigbee router or controller.</p>
+<p>Not being happy with the XBee3 for this use case, I looked for another wireless solution. Bluetooth Low Energy (BLE) was an option. I use that already with a small battery device on a house key chain that sends a BLE beacon, which I pick up on a Raspberry Pi (Rpi). When I get close to the house and it's detected, the Rpi sends an MQTT message subscribed to by Home Assistant as an automation. The automation turns on the front porch lights at night. That works pretty well as long as I remove the BLE device from my pocket. It's a very low power signal. My concern here is I wanted to use a small weather proof enclosure (lots of rain where I live) and I may not have been able to pick up a BLE beacon.</p>
+<p>Ruling out BLE, I took a look at the ESP8266/ESP32 WiFI MCU devices. Specfically, the ESP-01s (ESP8266) looked promising since it's cheap, small, has just enough GPIO pins, and has a very low power deep sleep mode that can be triggered by a GPIO pin. See <a href="https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/sleep_modes.html">Espressif's website</a>. The ESP-01s is the replacement for the older ESP-01. This looked promising and because of the ubiquity of these devices, there is plenty of documentation and resources you can find online. Also, the Arduino libraries looked mature enough, so prototyping would be quick and easy (VSCode + Arduino).</p>
+<h3>Programming</h3>
+<p>Programming the ESP-01s is straight forward and in short time I had a prototype working. The plan was to have the ESP-01s wake up and quickly connect to WiFi and publish an MQTT message, then immediately go back to deep sleep. As a bonus, I wanted to include the input voltage reading for the ESP-01s in the MQTT payload so I can monitor the battery health of the CR123A.</p>
+<p>I used the ESP8266 WiFiClient to connect to WiFi, along with a couple optimizations to conserve battry and publish the MQTT as quickly as possible. First, I use static IPv4 addresses to avoid DHCP.</p>
+<p>Next, after digging around online I learned of this cool trick: Persist the WiFi's BSSID and channel in a struct to the RTC non-volite memory. On awake, I can read the struct back and pass in these values as parameters to the <code>WiFi.begin</code> method.</p>
+<p>In my testing, these optimizations saved a second or two, which is of course better for battery life. Also, that time is noticeable when walking the distance from the gate to the front door and waiting for the porch light to automatically turn on.</p>
+<p>Here's the struct (K&amp;R braces to save space):</p>
+<div class="highlight"><pre><span></span><code><span class="nx">typedef</span><span class="w"> </span><span class="nx">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">uint32_t</span><span class="w"> </span><span class="nx">crc32</span><span class="p">;</span>
+<span class="w">  </span><span class="nx">uint8_t</span><span class="w"> </span><span class="nx">channel</span><span class="p">;</span>
+<span class="w">  </span><span class="nx">uint8_t</span><span class="w"> </span><span class="nx">bssid</span><span class="p">[</span><span class="mi">6</span><span class="p">];</span>
+<span class="w">  </span><span class="nx">uint8_t</span><span class="w"> </span><span class="nx">padding</span><span class="p">;</span>
+<span class="p">}</span><span class="w"> </span><span class="nx">TRTCWiFi</span><span class="p">;</span>
+</code></pre></div>
+
+<p>Here's roughly what the connection code looks like:</p>
+<div class="highlight"><pre><span></span><code>bool connectStaticWifi(int connect_loops=40) {
+  IPAddress ip(192, 168, 10, 3);
+  IPAddress subnet(255, 255, 255, 0);
+  IPAddress gateway(192, 168, 10, 1);
+  TRTCWiFi rtcWiFi;
+  WiFi.persistent(false);
+  WiFi.config(ip, gateway, subnet);
+  WiFi.mode(WIFI_STA);
+  bool rtcValid = readRTCWiFi(&amp;rtcWiFi);
+  for (int j=0; j &lt; 2; ++j) {
+    if (rtcValid) {
+      WiFi.begin(SSID, PWD, rtcWiFi.channel, rtcWiFi.bssid, true);
+    }
+    else {
+      WiFi.begin(SSID, PWD);
+    }
+    for (int i=0; i &lt; connect_loops; ++i) {
+      if (WiFi.status() != WL_CONNECTED) {
+        delay(250);
+        Serial.print(&quot;.&quot;);
+        continue;
+      }
+    }
+    if (WiFi.status() != WL_CONNECTED) {
+      if (!rtcValid) {
+        return false;
+      }
+      rtcValid = false;
+      continue;
+    }
+    rtcWiFi.channel = WiFi.channel();
+    memcpy(rtcWiFi.bssid, WiFi.BSSID(), 6);
+    rtcWiFi.crc32 = calculateCRC32(((uint8_t*)&amp;rtcWiFi) + 4, sizeof(rtcWiFi) - 4);
+    ESP.rtcUserMemoryWrite(0, (uint32_t*)&amp;rtcWiFi, sizeof(rtcWiFi));
+    return true;
+  }
+  return false;
+}
+</code></pre></div>
+
+<p>For the MQTT client code, I use the Arduino <a href="https://github.com/knolleary/pubsubclient">PubSubClient</a> library. I don't use a certificate to encrypt. More on that later. Here is the main code that when awake, connects, publishes, then sleeps:</p>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">connectStaticWifi</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">uint16_t</span><span class="w"> </span><span class="nx">vcc</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">ESP</span><span class="p">.</span><span class="nx">getVcc</span><span class="p">();</span>
+<span class="w">    </span><span class="nx">WiFiClient</span><span class="w"> </span><span class="nx">wifiClient</span><span class="p">;</span>
+<span class="w">    </span><span class="nx">IPAddress</span><span class="w"> </span><span class="nx">mqttHost</span><span class="p">(</span><span class="mi">192</span><span class="p">,</span><span class="w"> </span><span class="mi">168</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span>
+<span class="w">    </span><span class="nx">PubSubClient</span><span class="w"> </span><span class="nx">mqttClient</span><span class="p">(</span><span class="nx">wifiClient</span><span class="p">,</span><span class="w"> </span><span class="nx">mqttHost</span><span class="p">,</span><span class="w"> </span><span class="mi">1883</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">mqttClient</span><span class="p">.</span><span class="nx">connect</span><span class="p">(</span><span class="s">&quot;frontgate_client&quot;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">mqttClient</span><span class="p">.</span><span class="nx">publish</span><span class="p">(</span><span class="nx">String</span><span class="p">(</span><span class="s">&quot;HA/trigger/&quot;</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">WiFi</span><span class="p">.</span><span class="nx">hostname</span><span class="p">(),</span>
+<span class="w">        </span><span class="nx">String</span><span class="p">(</span><span class="s">&quot;{\&quot;event_type\&quot;:\&quot;triggered\&quot;,\&quot;VCC\&quot;:&quot;</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">vcc</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;}&quot;</span><span class="p">);</span>
+<span class="w">      </span><span class="nx">mqttClient</span><span class="p">.</span><span class="nx">disconnect</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="nx">ESP</span><span class="p">.</span><span class="nx">deepSleep</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nx">RF_NO_CAL</span><span class="p">);</span>
+</code></pre></div>
+
+<p>I add <code>Wifi.hostname()</code> to the topic and include the VCC (input voltage) reading in the payload. To have the ADC read the VCC, you have to configure the ESP-01s using this at the top of the source:</p>
+<div class="highlight"><pre><span></span><code>ADC_MODE(ADC_VCC);
+</code></pre></div>
+
+<p>We now have everything we need to publish an MQTT message when the front gate reed switch wakes up the ESP-01s.</p>
+<h3>VLAN and Mosquitto MQTT broker configuration</h3>
+<p>I already had an obligatory IoT VLAN configured for cloud-crap that came with the house (e.g. Ring doorbell). I've finally replaced all this Iosh*T-ness with Unifi devices (e.g. G4 Doorbell Pro). I still use my IoT VLAN though for projects like the front gate sensor.</p>
+<p>VLAN isolation is important since I didn't use TLS for the MQTT connection. I'm really strict about using TLS and ACL settings for the rest of my MQTT clients (e.g. the Rpi that publishes BLE devices) running on my main network. Isolating clients to a VLAN that don't encrypt at least lets me control every client that can see the open port to the IoT Mosquitto broker. I especially don't want it visible from my main networks.</p>
+<p>I have a low power Intel Atom dual NIC device that runs FreeBSD 14 and Mosquitto 2.0 MQTT broker. One NIC is on the IoT VLAN and the other NIC can access the network I run my main Mosquitto broker. Everything is locked down with PF rules.</p>
+<p>I bridge the two Mosquitto brokers. For the IoT NIC listener, I use an ACL file to limit topics. There is a single line in the mosquitto.acl file:</p>
+<div class="highlight"><pre><span></span><code>topic write HA/trigger/ESP-xxxxxx
+</code></pre></div>
+
+<p>ESP-xxxxxx in the topic is replaced with the unique hostname for my specific ESP-01s -- we saw that code in the ESP-01s. This locks down what can be published to the IoT Mosquitto broker.</p>
+<p>Here are the important mosquitto.conf lines for the IoT Mosquitto broker:</p>
+<div class="highlight"><pre><span></span><code><span class="nx">listener</span><span class="w"> </span><span class="mi">1883</span><span class="w"> </span><span class="m m-Double">192.168.10.2</span>
+<span class="nx">allow_anonymous</span><span class="w"> </span><span class="kc">true</span>
+<span class="nx">acl_file</span><span class="w"> </span><span class="o">/</span><span class="nx">usr</span><span class="o">/</span><span class="nx">local</span><span class="o">/</span><span class="nx">etc</span><span class="o">/</span><span class="nx">mosquitto</span><span class="o">/</span><span class="nx">mosquitto</span><span class="p">.</span><span class="nx">acl</span>
+
+<span class="nx">connection_messages</span><span class="w"> </span><span class="kc">true</span>
+<span class="nx">log_type</span><span class="w"> </span><span class="nx">error</span>
+<span class="nx">log_type</span><span class="w"> </span><span class="nx">warning</span>
+<span class="nx">log_type</span><span class="w"> </span><span class="nx">notice</span>
+<span class="nx">log_timestamp</span><span class="w"> </span><span class="kc">true</span>
+<span class="nx">log_timestamp_format</span><span class="w"> </span><span class="o">%</span><span class="nx">Y</span><span class="o">-%</span><span class="nx">m</span><span class="o">-%</span><span class="nx">dT</span><span class="o">%</span><span class="nx">H</span><span class="p">:</span><span class="o">%</span><span class="nx">M</span><span class="p">:</span><span class="o">%</span><span class="nx">S</span>
+<span class="nx">log_dest</span><span class="w"> </span><span class="nx">syslog</span>
+
+<span class="nx">connection</span><span class="w"> </span><span class="nx">main_broker</span>
+<span class="nx">address</span><span class="w"> </span><span class="nx">my</span><span class="p">.</span><span class="nx">main</span><span class="p">.</span><span class="nx">mosquitto</span><span class="p">.</span><span class="nx">broker</span><span class="p">:</span><span class="mi">8883</span>
+<span class="nx">bridge_insecure</span><span class="w"> </span><span class="kc">false</span>
+<span class="nx">bridge_capath</span><span class="w"> </span><span class="o">/</span><span class="nx">etc</span><span class="o">/</span><span class="nx">ssl</span><span class="o">/</span><span class="nx">certs</span><span class="o">/</span>
+<span class="nx">remote_username</span><span class="w"> </span><span class="nx">iotbridge</span>
+<span class="nx">remote_password</span><span class="w"> </span><span class="o">***</span>
+<span class="nx">remote_clientid</span><span class="w"> </span><span class="nx">iot_mosquitto</span><span class="p">.</span><span class="nx">service</span>
+<span class="nx">cleansession</span><span class="w"> </span><span class="kc">false</span>
+<span class="nx">topic</span><span class="w"> </span><span class="nx">HA</span><span class="o">/</span><span class="nx">trigger</span><span class="o">/</span><span class="err">#</span><span class="w"> </span><span class="nx">out</span>
+</code></pre></div>
+
+<p>This configures a listener on the IoT VLAN and creates a bridge to my main Mosquitto broker. Note that I use TLS for that bridge connection. Home Assistant can also subscribe to my main Mosquitto broker. </p>
+<p>I can now get an MQTT message published from the front gate ESP-01s to MQTT clients on my main Mosquitto broker.</p>
+<h3>Home Assistant integration</h3>
+<p>To create Home Assistant automations that respond to the front gate opening, I created an MQTT Event. Something like this in configuration.yaml:</p>
+<div class="highlight"><pre><span></span><code><span class="nv">mqtt</span>:<span class="w"> </span><span class="o">!</span><span class="k">include</span><span class="w"> </span><span class="nv">mqtt</span>.<span class="nv">yaml</span>
+</code></pre></div>
+
+<p>And mqtt.yaml:</p>
+<div class="highlight"><pre><span></span><code>event: !include mqtt_event.yaml
+device_tracker: !include mqtt_device_tracker.yaml
+</code></pre></div>
+
+<p>And finally, mqtt_event.yaml:</p>
+<div class="highlight"><pre><span></span><code><span class="o">-</span><span class="w"> </span><span class="nx">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Front gate&quot;</span>
+<span class="w">  </span><span class="nx">unique_id</span><span class="p">:</span><span class="w"> </span><span class="nx">mqtt_event</span><span class="p">.</span><span class="nx">front_gate_trigger</span>
+<span class="w">  </span><span class="nx">state_topic</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;HA/trigger/ESP-xxxxxx&quot;</span>
+<span class="w">  </span><span class="nx">event_types</span><span class="p">:</span>
+<span class="w">    </span><span class="o">-</span><span class="w"> </span><span class="s">&quot;triggered&quot;</span>
+</code></pre></div>
+
+<p>Note the device_tracker in mqtt.yaml. I use <a href="https://github.com/idatum/unifi_tracker">unifi_tracker</a> for home presence detection in Home Assistant. Generally, no household members leave the house without their phone, so I use my Unifi APs to keep track of active phone connections to determine if anyone is home.</p>
+<p>When nobody is home, I take a snapshot from my Unifi G4 Doorbell Pro and send it to my phone using <a href="https://github.com/bbernhard/signal-cli-rest-api">signal-cli-rest-api</a>. Usually this is a picture of a package being delivered.</p>
+<h3>Deployment</h3>
+<p>Wiring up the ESP-01s to be triggered on a GPIO pin to wake from deep sleep is really straight forward -- plenty of resources online. I used a socket to make the soldering easy and in case I needed to replace the ESP-01s. Also, I use a battery holder for the CR123A to make battery replacement easy.</p>
+<p>I found a small enclosure with an IP65 waterproof rating to house the ESP-01s and the CR123A battery. I sealed up all holes for sensor wires with silicone gel, and added a couple desiccant packets for good measure.</p>
+<p>For the gate magnet, it's a neodymium and about 1cm in diameter. I created an indentation in the wooden gate and use silicone gel as an adhesive. The magnet passes just over the reed switch a short distance from the position when the gate is latched.</p>
+<h3>Remaining RTC code.</h3>
+<p>Here is the remaining ESP-01s code to read from RTC memory.</p>
+<div class="highlight"><pre><span></span><code><span class="o">//</span><span class="w"> </span><span class="n">From</span><span class="w"> </span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">gist</span><span class="o">.</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">nazt</span><span class="o">/</span><span class="n">e401aa099c81f7b0b26bb89acfa916f2</span>
+
+<span class="n">uint32_t</span><span class="w"> </span><span class="n">calculateCRC32</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">uint8_t</span><span class="w"> </span><span class="o">*</span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="n">size_t</span><span class="w"> </span><span class="n">length</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">uint32_t</span><span class="w"> </span><span class="n">crc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0xffffffff</span><span class="p">;</span>
+<span class="w">  </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">length</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">uint8_t</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="n">data</span><span class="o">++</span><span class="p">;</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">uint32_t</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0x80</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&gt;&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nb nb-Type">bool</span><span class="w"> </span><span class="n">bit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">crc</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mh">0x80000000</span><span class="p">;</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">bit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">!</span><span class="n">bit</span><span class="p">;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">      </span><span class="n">crc</span><span class="w"> </span><span class="o">&lt;&lt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">bit</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">crc</span><span class="w"> </span><span class="o">^=</span><span class="w"> </span><span class="mh">0x04c11db7</span><span class="p">;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">crc</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="nb nb-Type">bool</span><span class="w"> </span><span class="n">readRTCWiFi</span><span class="p">(</span><span class="n">TRTCWiFi</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">pRTCWiFi</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nb nb-Type">bool</span><span class="w"> </span><span class="n">rtcValid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">false</span><span class="p">;</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">ESP</span><span class="o">.</span><span class="n">rtcUserMemoryRead</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">uint32_t</span><span class="o">*</span><span class="p">)</span><span class="n">pRTCWiFi</span><span class="p">,</span><span class="w"> </span><span class="n">sizeof</span><span class="p">(</span><span class="n">TRTCWiFi</span><span class="p">)))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">uint32_t</span><span class="w"> </span><span class="n">crc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">calculateCRC32</span><span class="p">(((</span><span class="n">uint8_t</span><span class="o">*</span><span class="p">)</span><span class="n">pRTCWiFi</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="n">sizeof</span><span class="p">(</span><span class="n">TRTCWiFi</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">4</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">crc</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">pRTCWiFi</span><span class="o">-&gt;</span><span class="n">crc32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">rtcValid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">rtcValid</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3>Summary</h3>
+<p>I now have a suprisingly reliable way to detect when my house front gate is opened. What also surpised me is the battery has been healthy and I have not had to replace it. I installed it in September 2023 and the VCC is still reading around 3.1 VDC.</p>
+<p>If I open and close the gate slowly enough, I'll get two trigger events. It's fine, I just account for that in any automation.</p>
+<p>One drawback is I can't reliably detect if the gate is not latched. I find out soon enough though if it's windy.</p>
+<p>I chose DIY here, but another option I considered was using a Ring Z-Wave sensor: <a href="https://ring.com/products/alarm-outdoor-contact-sensor">Ring Alarm Outdoor Contact Sensor</a>. Z-Wave has the range and I already have a healthy mesh network. A bit pricy and not as fun though.</p>
+<p>Here is the deployment of the front gate sensor in all it's glory, spouse approved.
+<img alt="Front gate sensor image" src="./images/front_gate_sensor.png"></p>
+    <div class="clear"></div>
+
+    <div class="hidden">
+        <br/>
+        <a href="./category/home-automation.html" rel="tag">Home automation</a>
+    </div>
+</article>            <div class="clear"></div>
+            <footer>
+                <a rel="me" href="https://mastodon.sdf.org/@joelp">© 2023 mastodon.sdf.org/@joelp</a>
+                <br/>
+                <a href="https://github.com/idatum">GitHub repos</a>
+            </footer>
+        </div>
+        <div class="clear"></div>
+    </div>
+</body>
+</html>
