@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Lab Notes - Home automation</title><link href="https://idatum.net/" rel="alternate"></link><link href="https://idatum.net/feeds/home-automation.atom.xml" rel="self"></link><id>https://idatum.net/</id><updated>2024-01-13T00:00:00-08:00</updated><subtitle>Various personal weekend projects</subtitle><entry><title>Remote front gate sensor.</title><link href="https://idatum.net/remote-front-gate-sensor.html" rel="alternate"></link><published>2024-01-13T00:00:00-08:00</published><updated>2024-01-13T00:00:00-08:00</updated><author><name>@joelp@mastodon.sdf.org</name></author><id>tag:idatum.net,2024-01-13:/remote-front-gate-sensor.html</id><summary type="html">&lt;p&gt;Notes on using an ESP-01s for my house front gate sensor.&lt;/p&gt;</summary><content type="html">&lt;p&gt;I have a couple use cases for detecting when my house front gate is opened. At night, opening the gate triggers the front porch lights. During the day, I know when packages arrive. When I'm away, I get a picture of the front gate from my doorbell camera.&lt;/p&gt;
+&lt;p&gt;Here are notes on using a battery powered ESP-01s to notify when the house front gate is opened.&lt;/p&gt;
+&lt;h3&gt;Hardware choice&lt;/h3&gt;
+&lt;p&gt;The gate is about 21 feet (~6.5 meters) from the house. That's not too far, but I didn't want to run wires to power a sensor. I decided to use a 3V CR123A lithium battery. I don't live in an area of extreme temperatures, so it was worth a try.&lt;/p&gt;
+&lt;p&gt;The plan was to have a sensor detect when a magnet attached to the gate door swings past a mechanical &lt;a href="https://www.sparkfun.com/products/10601"&gt;reed switch&lt;/a&gt; -- pretty simple. I needed a microcontroller (MCU) that can sleep using minimal battery power and be triggered by the reed switch closing. I also needed that MCU to communicate its state wirelessly.&lt;/p&gt;
+&lt;p&gt;My first choice was a Digi XBee3 Zigbee 3.0 module. I've had good experience with them, such as &lt;a href="https://github.com/idatum/xbee3-laundry"&gt;monitoring my laundry&lt;/a&gt;. The XBee3 can sleep at very low power as a Zigbee end device, and has a pin that can wake it up. Unfortunately, I seemed to end up fighting the Zigbee 3.0 spec more than anything. It can be hours or even days before the gate is triggered, and after a certain period the XBee3 would not associate with a nearby Zigbee router or controller.&lt;/p&gt;
+&lt;p&gt;Not being happy with the XBee3 for this use case, I looked for another wireless solution. Bluetooth Low Energy (BLE) was an option. I use that already with a small battery device on a house key chain that sends a BLE beacon, which I pick up on a Raspberry Pi (Rpi). When I get close to the house and it's detected, the Rpi sends an MQTT message subscribed to by Home Assistant as an automation. The automation turns on the front porch lights at night. That works pretty well as long as I remove the BLE device from my pocket. It's a very low power signal. My concern here is I wanted to use a small weather proof enclosure (lots of rain where I live) and I may not have been able to pick up a BLE beacon.&lt;/p&gt;
+&lt;p&gt;Ruling out BLE, I took a look at the ESP8266/ESP32 WiFI MCU devices. Specfically, the ESP-01s (ESP8266) looked promising since it's cheap, small, has just enough GPIO pins, and has a very low power deep sleep mode that can wake up via the RST pin. See &lt;a href="https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/sleep_modes.html"&gt;Espressif's website&lt;/a&gt;. The ESP-01s is the replacement for the older ESP-01. This looked promising and because of the ubiquity of these devices, there is plenty of documentation and resources you can find online. Also, the Arduino libraries looked mature enough, so prototyping would be quick and easy (VSCode + Arduino).&lt;/p&gt;
+&lt;h3&gt;Programming&lt;/h3&gt;
+&lt;p&gt;Programming the ESP-01s is straight forward and in short time I had a prototype working. The plan was to have the ESP-01s wake up and quickly connect to WiFi and publish an MQTT message, then immediately go back to deep sleep. As a bonus, I wanted to include the input voltage reading for the ESP-01s in the MQTT payload so I can monitor the battery health of the CR123A.&lt;/p&gt;
+&lt;p&gt;I used the ESP8266 WiFiClient to connect to WiFi, along with a couple optimizations to conserve battry and publish the MQTT as quickly as possible. First, I use static IPv4 addresses to avoid DHCP.&lt;/p&gt;
+&lt;p&gt;Next, after digging around online I learned of this cool trick: Persist the WiFi's BSSID and channel in a struct to the RTC non-volite memory. On awake, I can read the struct back and pass in these values as parameters to the &lt;code&gt;WiFi.begin&lt;/code&gt; method.&lt;/p&gt;
+&lt;p&gt;In my testing, these optimizations saved a second or two, which is of course better for battery life. Also, that time is noticeable when walking the distance from the gate to the front door and waiting for the porch light to automatically turn on.&lt;/p&gt;
+&lt;p&gt;Here's the struct (K&amp;amp;R braces to save space):&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nx"&gt;typedef&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;struct&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="nx"&gt;uint32_t&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;crc32&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="nx"&gt;uint8_t&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;channel&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="nx"&gt;uint8_t&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;bssid&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;6&lt;/span&gt;&lt;span class="p"&gt;];&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="nx"&gt;uint8_t&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;padding&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;TRTCWiFi&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Here's roughly what the connection code looks like:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;bool connectStaticWifi(int connect_loops=40) {
+  IPAddress ip(192, 168, 10, 3);
+  IPAddress subnet(255, 255, 255, 0);
+  IPAddress gateway(192, 168, 10, 1);
+  TRTCWiFi rtcWiFi;
+  WiFi.persistent(false);
+  WiFi.config(ip, gateway, subnet);
+  WiFi.mode(WIFI_STA);
+  bool rtcValid = readRTCWiFi(&amp;amp;rtcWiFi);
+  for (int j=0; j &amp;lt; 2; ++j) {
+    if (rtcValid) {
+      WiFi.begin(SSID, PWD, rtcWiFi.channel, rtcWiFi.bssid, true);
+    }
+    else {
+      WiFi.begin(SSID, PWD);
+    }
+    for (int i=0; i &amp;lt; connect_loops; ++i) {
+      if (WiFi.status() != WL_CONNECTED) {
+        delay(250);
+        Serial.print(&amp;quot;.&amp;quot;);
+        continue;
+      }
+    }
+    if (WiFi.status() != WL_CONNECTED) {
+      if (!rtcValid) {
+        return false;
+      }
+      rtcValid = false;
+      continue;
+    }
+    rtcWiFi.channel = WiFi.channel();
+    memcpy(rtcWiFi.bssid, WiFi.BSSID(), 6);
+    rtcWiFi.crc32 = calculateCRC32(((uint8_t*)&amp;amp;rtcWiFi) + 4, sizeof(rtcWiFi) - 4);
+    ESP.rtcUserMemoryWrite(0, (uint32_t*)&amp;amp;rtcWiFi, sizeof(rtcWiFi));
+    return true;
+  }
+  return false;
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;For the MQTT client code, I use the Arduino &lt;a href="https://github.com/knolleary/pubsubclient"&gt;PubSubClient&lt;/a&gt; library. I don't use a certificate to encrypt. More on that later. Here is the main code that when awake, connects, publishes, then sleeps:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;connectStaticWifi&lt;/span&gt;&lt;span class="p"&gt;())&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="nx"&gt;uint16_t&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;vcc&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;=&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;ESP&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;getVcc&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="nx"&gt;WiFiClient&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;wifiClient&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="nx"&gt;IPAddress&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;mqttHost&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;192&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="mi"&gt;168&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="mi"&gt;10&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="nx"&gt;PubSubClient&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;mqttClient&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;wifiClient&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;mqttHost&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="mi"&gt;1883&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;mqttClient&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;connect&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;frontgate_client&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;
+&lt;span class="w"&gt;      &lt;/span&gt;&lt;span class="nx"&gt;mqttClient&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;publish&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;String&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;HA/trigger/&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;WiFi&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;hostname&lt;/span&gt;&lt;span class="p"&gt;(),&lt;/span&gt;
+&lt;span class="w"&gt;        &lt;/span&gt;&lt;span class="nx"&gt;String&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;{\&amp;quot;event_type\&amp;quot;:\&amp;quot;triggered\&amp;quot;,\&amp;quot;VCC\&amp;quot;:&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;vcc&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s"&gt;&amp;quot;}&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;span class="w"&gt;      &lt;/span&gt;&lt;span class="nx"&gt;mqttClient&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;disconnect&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="nx"&gt;ESP&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;deepSleep&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;RF_NO_CAL&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;I add &lt;code&gt;Wifi.hostname()&lt;/code&gt; to the topic and include the VCC (input voltage) reading in the payload. To have the ADC read the VCC, you have to configure the ESP-01s using this at the top of the source:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;ADC_MODE(ADC_VCC);
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;We now have everything we need to publish an MQTT message when the front gate reed switch wakes up the ESP-01s.&lt;/p&gt;
+&lt;h3&gt;VLAN and Mosquitto MQTT broker configuration&lt;/h3&gt;
+&lt;p&gt;I already had an obligatory IoT VLAN configured for cloud-crap that came with the house (e.g. Ring doorbell). I've finally replaced all this Iosh*T-ness with Unifi devices (e.g. G4 Doorbell Pro). I still use my IoT VLAN though for projects like the front gate sensor.&lt;/p&gt;
+&lt;p&gt;VLAN isolation is important since I didn't use TLS for the MQTT connection. I'm really strict about using TLS and ACL settings for the rest of my MQTT clients (e.g. the Rpi that publishes BLE devices) running on my main network. Isolating clients to a VLAN that don't encrypt at least lets me control every client that can see the open port to the IoT Mosquitto broker. I especially don't want it visible from my main networks.&lt;/p&gt;
+&lt;p&gt;I have a low power Intel Atom dual NIC device that runs FreeBSD 14 and Mosquitto 2.0 MQTT broker. One NIC is on the IoT VLAN and the other NIC can access the network I run my main Mosquitto broker. Everything is locked down with PF rules.&lt;/p&gt;
+&lt;p&gt;I bridge the two Mosquitto brokers. For the IoT NIC listener, I use an ACL file to limit topics. There is a single line in the mosquitto.acl file:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;topic write HA/trigger/ESP-xxxxxx
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;ESP-xxxxxx in the topic is replaced with the unique hostname for my specific ESP-01s -- we saw that code in the ESP-01s. This locks down what can be published to the IoT Mosquitto broker.&lt;/p&gt;
+&lt;p&gt;Here are the important mosquitto.conf lines for the IoT Mosquitto broker:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nx"&gt;listener&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="mi"&gt;1883&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m m-Double"&gt;192.168.10.2&lt;/span&gt;
+&lt;span class="nx"&gt;allow_anonymous&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;
+&lt;span class="nx"&gt;acl_file&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="nx"&gt;usr&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="nx"&gt;local&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="nx"&gt;etc&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="nx"&gt;mosquitto&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="nx"&gt;mosquitto&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;acl&lt;/span&gt;
+
+&lt;span class="nx"&gt;connection_messages&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;
+&lt;span class="nx"&gt;log_type&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;error&lt;/span&gt;
+&lt;span class="nx"&gt;log_type&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;warning&lt;/span&gt;
+&lt;span class="nx"&gt;log_type&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;notice&lt;/span&gt;
+&lt;span class="nx"&gt;log_timestamp&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;
+&lt;span class="nx"&gt;log_timestamp_format&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;%&lt;/span&gt;&lt;span class="nx"&gt;Y&lt;/span&gt;&lt;span class="o"&gt;-%&lt;/span&gt;&lt;span class="nx"&gt;m&lt;/span&gt;&lt;span class="o"&gt;-%&lt;/span&gt;&lt;span class="nx"&gt;dT&lt;/span&gt;&lt;span class="o"&gt;%&lt;/span&gt;&lt;span class="nx"&gt;H&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;%&lt;/span&gt;&lt;span class="nx"&gt;M&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;%&lt;/span&gt;&lt;span class="nx"&gt;S&lt;/span&gt;
+&lt;span class="nx"&gt;log_dest&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;syslog&lt;/span&gt;
+
+&lt;span class="nx"&gt;connection&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;main_broker&lt;/span&gt;
+&lt;span class="nx"&gt;address&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;my&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;main&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;mosquitto&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;broker&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;8883&lt;/span&gt;
+&lt;span class="nx"&gt;bridge_insecure&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;false&lt;/span&gt;
+&lt;span class="nx"&gt;bridge_capath&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="nx"&gt;etc&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="nx"&gt;ssl&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="nx"&gt;certs&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;
+&lt;span class="nx"&gt;remote_username&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;iotbridge&lt;/span&gt;
+&lt;span class="nx"&gt;remote_password&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;***&lt;/span&gt;
+&lt;span class="nx"&gt;remote_clientid&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;iot_mosquitto&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;service&lt;/span&gt;
+&lt;span class="nx"&gt;cleansession&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;false&lt;/span&gt;
+&lt;span class="nx"&gt;topic&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;HA&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="nx"&gt;trigger&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="err"&gt;#&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;out&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;This configures a listener on the IoT VLAN and creates a bridge to my main Mosquitto broker. Note that I use TLS for that bridge connection. Home Assistant can also subscribe to my main Mosquitto broker. &lt;/p&gt;
+&lt;p&gt;I can now get an MQTT message published from the front gate ESP-01s to MQTT clients on my main Mosquitto broker.&lt;/p&gt;
+&lt;h3&gt;Home Assistant integration&lt;/h3&gt;
+&lt;p&gt;To create Home Assistant automations that respond to the front gate opening, I created an MQTT Event. Something like this in configuration.yaml:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nv"&gt;mqtt&lt;/span&gt;:&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;!&lt;/span&gt;&lt;span class="k"&gt;include&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;mqtt&lt;/span&gt;.&lt;span class="nv"&gt;yaml&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;And mqtt.yaml:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;event: !include mqtt_event.yaml
+device_tracker: !include mqtt_device_tracker.yaml
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;And finally, mqtt_event.yaml:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s"&gt;&amp;quot;Front gate&amp;quot;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="nx"&gt;unique_id&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;mqtt_event&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;front_gate_trigger&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="nx"&gt;state_topic&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s"&gt;&amp;quot;HA/trigger/ESP-xxxxxx&amp;quot;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="nx"&gt;event_types&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s"&gt;&amp;quot;triggered&amp;quot;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Note the device_tracker in mqtt.yaml. I use &lt;a href="https://github.com/idatum/unifi_tracker"&gt;unifi_tracker&lt;/a&gt; for home presence detection in Home Assistant. Generally, no household members leave the house without their phone, so I use my Unifi APs to keep track of active phone connections to determine if anyone is home.&lt;/p&gt;
+&lt;p&gt;When nobody is home, I take a snapshot from my Unifi G4 Doorbell Pro and send it to my phone using &lt;a href="https://github.com/bbernhard/signal-cli-rest-api"&gt;signal-cli-rest-api&lt;/a&gt;. Usually this is a picture of a package being delivered.&lt;/p&gt;
+&lt;h3&gt;Deployment&lt;/h3&gt;
+&lt;p&gt;Wiring up the ESP-01s to be triggered on the RST pin to wake from deep sleep is really straight forward -- plenty of resources online. I used a socket to make the soldering easy and in case I needed to replace the ESP-01s. Also, I use a battery holder for the CR123A to make battery replacement easy.&lt;/p&gt;
+&lt;p&gt;I found a small enclosure with an IP65 waterproof rating to house the ESP-01s and the CR123A battery. I sealed up all holes for sensor wires with silicone gel, and added a couple desiccant packets for good measure.&lt;/p&gt;
+&lt;p&gt;For the gate magnet, it's a neodymium and about 1cm in diameter. I created an indentation in the wooden gate and use silicone gel as an adhesive. The magnet passes just over the reed switch a short distance from the position when the gate is latched.&lt;/p&gt;
+&lt;h3&gt;Remaining RTC code.&lt;/h3&gt;
+&lt;p&gt;Here is the remaining ESP-01s code to read from RTC memory.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="o"&gt;//&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;From&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;https&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;//&lt;/span&gt;&lt;span class="n"&gt;gist&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;github&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;com&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;nazt&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;e401aa099c81f7b0b26bb89acfa916f2&lt;/span&gt;
+
+&lt;span class="n"&gt;uint32_t&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;calculateCRC32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="k"&gt;const&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;uint8_t&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;size_t&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;length&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="n"&gt;uint32_t&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;crc&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="mh"&gt;0xffffffff&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="k"&gt;while&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;length&lt;/span&gt;&lt;span class="o"&gt;--&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="n"&gt;uint8_t&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;c&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="o"&gt;++&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="k"&gt;for&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;uint32_t&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="mh"&gt;0x80&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;&amp;gt;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;&amp;gt;&amp;gt;=&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;
+&lt;span class="w"&gt;      &lt;/span&gt;&lt;span class="nb nb-Type"&gt;bool&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;bit&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;crc&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;&amp;amp;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="mh"&gt;0x80000000&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="w"&gt;      &lt;/span&gt;&lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;c&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;&amp;amp;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;
+&lt;span class="w"&gt;        &lt;/span&gt;&lt;span class="n"&gt;bit&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;!&lt;/span&gt;&lt;span class="n"&gt;bit&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="w"&gt;      &lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="w"&gt;      &lt;/span&gt;&lt;span class="n"&gt;crc&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;&amp;lt;&amp;lt;=&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="w"&gt;      &lt;/span&gt;&lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;bit&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;
+&lt;span class="w"&gt;        &lt;/span&gt;&lt;span class="n"&gt;crc&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;^=&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="mh"&gt;0x04c11db7&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="w"&gt;      &lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="k"&gt;return&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;crc&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+
+&lt;span class="nb nb-Type"&gt;bool&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;readRTCWiFi&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;TRTCWiFi&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;pRTCWiFi&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="nb nb-Type"&gt;bool&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;rtcValid&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="bp"&gt;false&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;ESP&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;rtcUserMemoryRead&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;uint32_t&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="n"&gt;pRTCWiFi&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;sizeof&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;TRTCWiFi&lt;/span&gt;&lt;span class="p"&gt;)))&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="n"&gt;uint32_t&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;crc&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;calculateCRC32&lt;/span&gt;&lt;span class="p"&gt;(((&lt;/span&gt;&lt;span class="n"&gt;uint8_t&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="n"&gt;pRTCWiFi&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="mi"&gt;4&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;sizeof&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;TRTCWiFi&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="mi"&gt;4&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;crc&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;==&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;pRTCWiFi&lt;/span&gt;&lt;span class="o"&gt;-&amp;gt;&lt;/span&gt;&lt;span class="n"&gt;crc32&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;
+&lt;span class="w"&gt;      &lt;/span&gt;&lt;span class="n"&gt;rtcValid&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="bp"&gt;true&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="k"&gt;return&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;rtcValid&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;h3&gt;Summary&lt;/h3&gt;
+&lt;p&gt;I now have a suprisingly reliable way to detect when my house front gate is opened. What also surpised me is the battery has been healthy and I have not had to replace it. I installed it in September 2023 and the VCC is still reading around 3.1 VDC.&lt;/p&gt;
+&lt;p&gt;If I open and close the gate slowly enough, I'll get two trigger events. It's fine, I just account for that in any automation.&lt;/p&gt;
+&lt;p&gt;One drawback is I can't reliably detect if the gate is not latched. I find out soon enough though if it's windy.&lt;/p&gt;
+&lt;p&gt;I chose DIY here, but another option I considered was using a Ring Z-Wave sensor: &lt;a href="https://ring.com/products/alarm-outdoor-contact-sensor"&gt;Ring Alarm Outdoor Contact Sensor&lt;/a&gt;. Z-Wave has the range and I already have a healthy mesh network. A bit pricy and not as fun though.&lt;/p&gt;
+&lt;p&gt;Here is the deployment of the front gate sensor in all it's glory, spouse approved.
+&lt;img alt="Front gate sensor image" src="https://idatum.net/images/front_gate_sensor.png"&gt;&lt;/p&gt;</content><category term="Home automation"></category></entry><entry><title>Home Automation Notes</title><link href="https://idatum.net/home-automation-notes.html" rel="alternate"></link><published>2022-12-24T00:00:00-08:00</published><updated>2022-12-24T00:00:00-08:00</updated><author><name>@joelp@mastodon.sdf.org</name></author><id>tag:idatum.net,2022-12-24:/home-automation-notes.html</id><summary type="html">&lt;p&gt;Notes on home automation.&lt;/p&gt;</summary><content type="html">&lt;p&gt;A few notes to share on home automation projects I've implemented and integrated with Home Assistant. I hope any of this helps!&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Topic&lt;/th&gt;
+&lt;th&gt;Notes&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Home Assistant (HA)&lt;/td&gt;
+&lt;td&gt;I keep current on the latest HA Docker image running on a Debian 12 AMD64 server (old i7 Lenovo desktop). The majority of my integrations rely on Z-Wave devices and MQTT, and the HA MQTT integration.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Z-Wave JS&lt;/td&gt;
+&lt;td&gt;I run in Docker attached to a AEON Labs Z-Stick Gen5.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;HA Automations&lt;/td&gt;
+&lt;td&gt;Automations are split between HA automation scripts and scenes, and custom code including a replacement for HA's MQTT Statestream: &lt;a href="https://github.com/idatum/hass2mqtt"&gt;hass2mqtt&lt;/a&gt;. Ultimately I have only a few HA integrations which minimizes risks during upgrades.&lt;br/&gt;With most DIY integrations using MQTT, there's also little chance of any breaking changes. This allows me to implement my own logic on state changes using various custom MQTT clients. Most run on Docker along with HA.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;MQTT&lt;/td&gt;
+&lt;td&gt;Mosquitto&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;HA App&lt;/td&gt;
+&lt;td&gt;Android&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Media&lt;/td&gt;
+&lt;td&gt;VLC player via Telnet connected to HA.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Bluetooth&lt;/td&gt;
+&lt;td&gt;I use a simple Python daemon running on a couple Raspberry Pi 3 devices to track known Bluetooth MAC addresses and publish to MQTT.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;BLE&lt;/td&gt;
+&lt;td&gt;A simple Python MQTT client running on a couple Raspberry Pi 3 devices uses &lt;a href="https://github.com/Home-Is-Where-You-Hang-Your-Hack/sensor.goveetemp_bt_hci"&gt;sensor.goveetemp_bt_hci&lt;/a&gt; and &lt;a href="https://github.com/TheCellule/python-bleson"&gt;python-bleson projects&lt;/a&gt;. These modules have proven solid. The only Bluetooth sensors I have are Govee H5074001 for temperature/humidity (e.g. for monitoring a humidor).&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;ZigBee&lt;/td&gt;
+&lt;td&gt;The majority of my DIY sensor projects use &lt;a href="https://www.digi.com/products/embedded-systems/digi-xbee/rf-modules/2-4-ghz-rf-modules/xbee-zigbee"&gt;Digi XBee Zigbee Modules&lt;/a&gt;. The repo &lt;a href="https://github.com/idatum/xbeesharp"&gt;xbeesharp&lt;/a&gt; has a .NET 7 C# implementation handling subscribing and publishing to MQTT and translating to and from XBee packets. I then define MQTT sensors in HA.&lt;br/&gt;A specific application of an XBee3 module is &lt;a href="https://github.com/idatum/xbee3-laundry"&gt;xbee3-laundry&lt;/a&gt;. Using the module's Micropython, it monitors my home's laundry by monitoring the electrical current usage on both washer and dryer circuits.&lt;br/&gt;I also use an XBee for my DIY garage door opener: An XBee device and a 3.3VDC relay along with a modified LiftMaster 883LM Security+ 2.0 MyQ push button replaces the MyQ cloud solution. I found MyQ to generally be awful 😟 I use a Z-Wave door sensor to detect the state of the garage door. There are several threads on HA Community Forum on how to replace MyQ.&lt;br/&gt;Using xbeesharp for these projects allows me to integrate with HA via MQTT publish service.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;SDR&lt;/td&gt;
+&lt;td&gt;&lt;a href="https://github.com/idatum/labrfcat"&gt;labrfcat&lt;/a&gt; has an rflib Python client to control a Minka Aire fan using a &lt;a href="https://greatscottgadgets.com/yardstickone/"&gt;YARD Stick One&lt;/a&gt;. I created a simple MQTT client daemon that sends commands from HA using MQTT.&lt;br/&gt;I use a few 433 MHz battery powered sensors. These are convenient for deploying to different locations. I run a simple &lt;a href="https://github.com/merbanan/rtl_433"&gt;rtl_433&lt;/a&gt; daemon on a Raspberry Pi 3 that publishes to MQTT. I use a &lt;a href="https://www.nooelec.com/store/sdr/nesdr-smart-sdr.html"&gt;Nooelec RTL-SDR adapter&lt;/a&gt; and a 433mhz antenna. Sensors are integrated into HA using MQTT via rtl_433.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Device tracking&lt;/td&gt;
+&lt;td&gt;&lt;a href="https://github.com/idatum/hass2mqtt"&gt;unifi_tracker&lt;/a&gt; polls each of my Ubiquity Unifi APs and publishes MAC client addresses to MQTT. I define MQTT device_tracker entities to integrate with HA. In my experience this solution has been more reliable than HA's. Plus I prefer to use SSH keys to connect to the APs instead of having to store passwords. The HA MQTT device_tracker entities I defined are used for presence detection.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Notifications&lt;/td&gt;
+&lt;td&gt;I use &lt;a href="https://github.com/AsamK/signal-cli"&gt;Signal CLI&lt;/a&gt; and a Twilio client that publish/subscribe to MQTT. This allows a simple integration with HA for receiving status or sending commands to and from my phone when I'm away without having to keep a remote connection to my HA server.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Remote access to HA&lt;/td&gt;
+&lt;td&gt;From my Android phone using Juice SSH client, I do an SSH tunnel (key auth) from HA's port to my phone's localhost. This is a simple and secure way to access HA remotely on-demand.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;</content><category term="Home automation"></category></entry></feed>
