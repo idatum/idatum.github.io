@@ -31,207 +31,156 @@
         </div>
     </header>
     <div id="wrapper">
-        <div id="content">    <h4 class="date">Jan 13, 2024</h4>
+        <div id="content">    <h4 class="date">Mar 24, 2024</h4>
 
 <article class="post">
     <h2 class="title">
-        <a href="./remote-front-gate-sensor.html" rel="bookmark" title="Permanent Link to &quot;Remote front gate sensor.&quot;">Remote front gate sensor.</a>
+        <a href="./ads-b-on-a-rock64-with-freebsd-stable14.html" rel="bookmark" title="Permanent Link to &quot;ADS-B on a Rock64 with FreeBSD stable/14&quot;">ADS-B on a Rock64 with FreeBSD stable/14</a>
     </h2>
 
                 
-    <p>I have a couple use cases for detecting when my house front gate is opened. At night, opening the gate triggers the front porch lights. During the day, I know when packages arrive. When I'm away, I get a picture of the front gate from my doorbell camera.</p>
-<p>Here are notes on using a battery powered ESP-01s to notify when the house front gate is opened.</p>
-<h3>Hardware choice</h3>
-<p>The gate is about 21 feet (~6.5 meters) from the house. That's not too far, but I didn't want to run wires to power a sensor. I decided to use a 3V CR123A lithium battery. I don't live in an area of extreme temperatures, so it was worth a try.</p>
-<p>The plan was to have a sensor detect when a magnet attached to the gate door swings past a mechanical <a href="https://www.sparkfun.com/products/10601">reed switch</a> -- pretty simple. I needed a microcontroller (MCU) that can sleep using minimal battery power and be triggered by the reed switch closing. I also needed that MCU to communicate its state wirelessly.</p>
-<p>My first choice was a Digi XBee3 Zigbee 3.0 module. I've had good experience with them, such as <a href="https://github.com/idatum/xbee3-laundry">monitoring my laundry</a>. The XBee3 can sleep at very low power as a Zigbee end device, and has a pin that can wake it up. Unfortunately, I seemed to end up fighting the Zigbee 3.0 spec more than anything. It can be hours or even days before the gate is triggered, and after a certain period the XBee3 would not associate with a nearby Zigbee router or controller.</p>
-<p>Not being happy with the XBee3 for this use case, I looked for another wireless solution. Bluetooth Low Energy (BLE) was an option. I use that already with a small battery device on a house key chain that sends a BLE beacon, which I pick up on a Raspberry Pi (Rpi). When I get close to the house and it's detected, the Rpi sends an MQTT message subscribed to by Home Assistant as an automation. The automation turns on the front porch lights at night. That works pretty well as long as I remove the BLE device from my pocket. It's a very low power signal. My concern here is I wanted to use a small weather proof enclosure (lots of rain where I live) and I may not have been able to pick up a BLE beacon.</p>
-<p>Ruling out BLE, I took a look at the ESP8266/ESP32 WiFI MCU devices. Specfically, the ESP-01s (ESP8266) looked promising since it's cheap, small, has just enough GPIO pins, and has a very low power deep sleep mode that can wake up via the RST pin. See <a href="https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/sleep_modes.html">Espressif's website</a>. The ESP-01s is the replacement for the older ESP-01. This looked promising and because of the ubiquity of these devices, there is plenty of documentation and resources you can find online. Also, the Arduino libraries looked mature enough, so prototyping would be quick and easy (VSCode + Arduino).</p>
-<h3>Programming</h3>
-<p>Programming the ESP-01s is straight forward and in short time I had a prototype working. The plan was to have the ESP-01s wake up and quickly connect to WiFi and publish an MQTT message, then immediately go back to deep sleep. As a bonus, I wanted to include the input voltage reading for the ESP-01s in the MQTT payload so I can monitor the battery health of the CR123A.</p>
-<p>I used the ESP8266 WiFiClient to connect to WiFi, along with a couple optimizations to conserve battry and publish the MQTT as quickly as possible. First, I use static IPv4 addresses to avoid DHCP.</p>
-<p>Next, after digging around online I learned of this cool trick: Persist the WiFi's BSSID and channel in a struct to the RTC non-volite memory. On awake, I can read the struct back and pass in these values as parameters to the <code>WiFi.begin</code> method.</p>
-<p>In my testing, these optimizations saved a second or two, which is of course better for battery life. Also, that time is noticeable when walking the distance from the gate to the front door and waiting for the porch light to automatically turn on.</p>
-<p>Here's the struct (K&amp;R braces to save space):</p>
-<div class="highlight"><pre><span></span><code><span class="nx">typedef</span><span class="w"> </span><span class="nx">struct</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="nx">uint32_t</span><span class="w"> </span><span class="nx">crc32</span><span class="p">;</span>
-<span class="w">  </span><span class="nx">uint8_t</span><span class="w"> </span><span class="nx">channel</span><span class="p">;</span>
-<span class="w">  </span><span class="nx">uint8_t</span><span class="w"> </span><span class="nx">bssid</span><span class="p">[</span><span class="mi">6</span><span class="p">];</span>
-<span class="w">  </span><span class="nx">uint8_t</span><span class="w"> </span><span class="nx">padding</span><span class="p">;</span>
-<span class="p">}</span><span class="w"> </span><span class="nx">TRTCWiFi</span><span class="p">;</span>
+    <p>I previously ran NetBSD 10_RC for several months on my <a href="https://wiki.pine64.org/wiki/ROCK64">Rock64 device</a>. I was able to get the FlightAware version of <a href="https://github.com/flightaware/dump1090">dump1090</a> (aka dump1090-fa) to work reasonably well (but usually had a core dump on shutdown). Unfortunately, the full suite of  <a href="https://github.com/osmocom/rtl-sdr">rtl-sdr</a> tools, as well as <a href="https://github.com/merbanan/rtl_433">rtl_433</a>, didn't work well at all. I have details about this experiement at <a href="/experimenting-with-rtl-sdr-on-netbsd-10.html">Experimenting with RTL-SDR on NetBSD 10</a>.</p>
+<p><a href="https://wiki.freebsd.org/arm/RockChip">FreeBSD</a> has better USB support for RTL-SDR devices and there are images available for the Rock64. I decided to switch to FreeBSD to run dump1090 and rtl_433. These are my notes.</p>
+<h4>Booting FreeBSD 14 from eMMC storage</h4>
+<p>You can download a <a href="http://ftp.freebsd.org/pub/FreeBSD/snapshots/ISO-IMAGES/14.0/">FreeBSD 14 stable image</a> and prepare an SD card to boot. Unfortunately, the kernel provided in the image does not support booting from eMMC. I decided to build a custom FreeBSD stable/14 kernel to add eMMC support.</p>
+<p>The <a href="https://wiki.freebsd.org/arm64">FreeBSD arm64 wiki</a> has details on building a custom kernel. I created a custom kernel config at <code>/usr/src/sys/arm64/conf/ROCK64</code> which includes support for booting from an eMMC card:</p>
+<div class="highlight"><pre><span></span><code><span class="k">include</span><span class="w"> </span><span class="nv">ROCKCHIP</span>
+<span class="nv">ident</span><span class="w">   </span><span class="nv">ROCK64</span>
+
+#<span class="w"> </span><span class="nv">pass</span><span class="ss">(</span><span class="mi">4</span><span class="ss">)</span><span class="w"> </span><span class="nv">device</span>
+<span class="nv">device</span><span class="w">                </span><span class="nv">pass</span>
+<span class="nv">options</span><span class="w">               </span><span class="nv">MMCCAM</span>
+<span class="nv">nodevice</span><span class="w">      </span><span class="nv">mmc</span>
+<span class="nv">nodevice</span><span class="w">      </span><span class="nv">mmcsd</span>
 </code></pre></div>
 
-<p>Here's roughly what the connection code looks like:</p>
-<div class="highlight"><pre><span></span><code>bool connectStaticWifi(int connect_loops=40) {
-  IPAddress ip(192, 168, 10, 3);
-  IPAddress subnet(255, 255, 255, 0);
-  IPAddress gateway(192, 168, 10, 1);
-  TRTCWiFi rtcWiFi;
-  WiFi.persistent(false);
-  WiFi.config(ip, gateway, subnet);
-  WiFi.mode(WIFI_STA);
-  bool rtcValid = readRTCWiFi(&amp;rtcWiFi);
-  for (int j=0; j &lt; 2; ++j) {
-    if (rtcValid) {
-      WiFi.begin(SSID, PWD, rtcWiFi.channel, rtcWiFi.bssid, true);
-    }
-    else {
-      WiFi.begin(SSID, PWD);
-    }
-    for (int i=0; i &lt; connect_loops; ++i) {
-      if (WiFi.status() != WL_CONNECTED) {
-        delay(250);
-        Serial.print(&quot;.&quot;);
-        continue;
-      }
-    }
-    if (WiFi.status() != WL_CONNECTED) {
-      if (!rtcValid) {
-        return false;
-      }
-      rtcValid = false;
-      continue;
-    }
-    rtcWiFi.channel = WiFi.channel();
-    memcpy(rtcWiFi.bssid, WiFi.BSSID(), 6);
-    rtcWiFi.crc32 = calculateCRC32(((uint8_t*)&amp;rtcWiFi) + 4, sizeof(rtcWiFi) - 4);
-    ESP.rtcUserMemoryWrite(0, (uint32_t*)&amp;rtcWiFi, sizeof(rtcWiFi));
-    return true;
-  }
-  return false;
-}
+<p>After checking out and pulling stable/14 (<code>git checkout stable/14 ; git pull</code>) in <code>/usr/src</code> I was ready to build a new kernel:</p>
+<div class="highlight"><pre><span></span><code>make buildkernel TARGET=arm64 KERNCONF=ROCK64
 </code></pre></div>
 
-<p>For the MQTT client code, I use the Arduino <a href="https://github.com/knolleary/pubsubclient">PubSubClient</a> library. I don't use a certificate to encrypt. More on that later. Here is the main code that when awake, connects, publishes, then sleeps:</p>
-<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">connectStaticWifi</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">uint16_t</span><span class="w"> </span><span class="nx">vcc</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">ESP</span><span class="p">.</span><span class="nx">getVcc</span><span class="p">();</span>
-<span class="w">    </span><span class="nx">WiFiClient</span><span class="w"> </span><span class="nx">wifiClient</span><span class="p">;</span>
-<span class="w">    </span><span class="nx">IPAddress</span><span class="w"> </span><span class="nx">mqttHost</span><span class="p">(</span><span class="mi">192</span><span class="p">,</span><span class="w"> </span><span class="mi">168</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span>
-<span class="w">    </span><span class="nx">PubSubClient</span><span class="w"> </span><span class="nx">mqttClient</span><span class="p">(</span><span class="nx">wifiClient</span><span class="p">,</span><span class="w"> </span><span class="nx">mqttHost</span><span class="p">,</span><span class="w"> </span><span class="mi">1883</span><span class="p">);</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">mqttClient</span><span class="p">.</span><span class="nx">connect</span><span class="p">(</span><span class="s">&quot;frontgate_client&quot;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
-<span class="w">      </span><span class="nx">mqttClient</span><span class="p">.</span><span class="nx">publish</span><span class="p">(</span><span class="nx">String</span><span class="p">(</span><span class="s">&quot;HA/trigger/&quot;</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">WiFi</span><span class="p">.</span><span class="nx">hostname</span><span class="p">(),</span>
-<span class="w">        </span><span class="nx">String</span><span class="p">(</span><span class="s">&quot;{\&quot;event_type\&quot;:\&quot;triggered\&quot;,\&quot;VCC\&quot;:&quot;</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">vcc</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;}&quot;</span><span class="p">);</span>
-<span class="w">      </span><span class="nx">mqttClient</span><span class="p">.</span><span class="nx">disconnect</span><span class="p">();</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">  </span><span class="p">}</span>
-<span class="w">  </span><span class="nx">ESP</span><span class="p">.</span><span class="nx">deepSleep</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nx">RF_NO_CAL</span><span class="p">);</span>
+<p>While that was building, I prepared the eMMC with the Rock64 image and mounted to <code>/mnt</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nv">dd</span><span class="w"> </span><span class="k">if</span><span class="o">=</span><span class="nv">FreeBSD</span><span class="o">-</span><span class="mi">14</span>.<span class="mi">0</span><span class="o">-</span><span class="nv">STABLE</span><span class="o">-</span><span class="nv">arm64</span><span class="o">-</span><span class="nv">aarch64</span><span class="o">-</span><span class="nv">ROCK64</span><span class="o">-</span><span class="mi">20240314</span><span class="o">-</span><span class="mi">91</span><span class="nv">c1c36102a6</span><span class="o">-</span><span class="mi">266971</span>.<span class="nv">img</span><span class="w"> </span><span class="nv">of</span><span class="o">=/</span><span class="nv">dev</span><span class="o">/</span><span class="nv">da2</span><span class="w"> </span><span class="nv">bs</span><span class="o">=</span><span class="mi">1</span><span class="nv">m</span><span class="w"> </span><span class="nv">status</span><span class="o">=</span><span class="nv">progress</span>
+<span class="nv">mount</span><span class="w"> </span><span class="o">/</span><span class="nv">dev</span><span class="o">/</span><span class="nv">da1p2</span><span class="w"> </span><span class="o">/</span><span class="nv">mnt</span>
 </code></pre></div>
 
-<p>I add <code>Wifi.hostname()</code> to the topic and include the VCC (input voltage) reading in the payload. To have the ADC read the VCC, you have to configure the ESP-01s using this at the top of the source:</p>
-<div class="highlight"><pre><span></span><code>ADC_MODE(ADC_VCC);
+<p>Once the kernel was built, I installed to the mounted image:</p>
+<div class="highlight"><pre><span></span><code>make installkernel TARGET=arm64 KERNCONF=ROCK64 DESTDIR=/mnt
 </code></pre></div>
 
-<p>We now have everything we need to publish an MQTT message when the front gate reed switch wakes up the ESP-01s.</p>
-<h3>VLAN and Mosquitto MQTT broker configuration</h3>
-<p>I already had an obligatory IoT VLAN configured for cloud-crap that came with the house (e.g. Ring doorbell). I've finally replaced all this Iosh*T-ness with Unifi devices (e.g. G4 Doorbell Pro). I still use my IoT VLAN though for projects like the front gate sensor.</p>
-<p>VLAN isolation is important since I didn't use TLS for the MQTT connection. I'm really strict about using TLS and ACL settings for the rest of my MQTT clients (e.g. the Rpi that publishes BLE devices) running on my main network. Isolating clients to a VLAN that don't encrypt at least lets me control every client that can see the open port to the IoT Mosquitto broker. I especially don't want it visible from my main networks.</p>
-<p>I have a low power Intel Atom dual NIC device that runs FreeBSD 14 and Mosquitto 2.0 MQTT broker. One NIC is on the IoT VLAN and the other NIC can access the network I run my main Mosquitto broker. Everything is locked down with PF rules.</p>
-<p>I bridge the two Mosquitto brokers. For the IoT NIC listener, I use an ACL file to limit topics. There is a single line in the mosquitto.acl file:</p>
-<div class="highlight"><pre><span></span><code>topic write HA/trigger/ESP-xxxxxx
+<p>That installs the kernel as well as flattened device tree files. At the time, it looked like the <a href="https://wiki.freebsd.org/FlattenedDeviceTree">FreeBSD FlattenedDeviceTree page</a> wasn't up to date. To ensure my custom kernel had the correct Rock64 DTB file I explicitely loaded it in <code>/boot/loader.conf</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="n">rk3328</span><span class="o">-</span><span class="n">rock64</span><span class="o">.</span><span class="n">dtb_type</span><span class="o">=</span><span class="s2">&quot;dtb&quot;</span>
+<span class="n">rk3328</span><span class="o">-</span><span class="n">rock64</span><span class="o">.</span><span class="n">dtb_name</span><span class="o">=</span><span class="s2">&quot;/boot/dtb/rockchip/rk3328-rock64.dtb&quot;</span>
+<span class="n">rk3328</span><span class="o">-</span><span class="n">rock64</span><span class="o">.</span><span class="n">dtb_load</span><span class="o">=</span><span class="s2">&quot;YES&quot;</span>
 </code></pre></div>
 
-<p>ESP-xxxxxx in the topic is replaced with the unique hostname for my specific ESP-01s -- we saw that code in the ESP-01s. This locks down what can be published to the IoT Mosquitto broker.</p>
-<p>Here are the important mosquitto.conf lines for the IoT Mosquitto broker:</p>
-<div class="highlight"><pre><span></span><code><span class="nx">listener</span><span class="w"> </span><span class="mi">1883</span><span class="w"> </span><span class="m m-Double">192.168.10.2</span>
-<span class="nx">allow_anonymous</span><span class="w"> </span><span class="kc">true</span>
-<span class="nx">acl_file</span><span class="w"> </span><span class="o">/</span><span class="nx">usr</span><span class="o">/</span><span class="nx">local</span><span class="o">/</span><span class="nx">etc</span><span class="o">/</span><span class="nx">mosquitto</span><span class="o">/</span><span class="nx">mosquitto</span><span class="p">.</span><span class="nx">acl</span>
-
-<span class="nx">connection_messages</span><span class="w"> </span><span class="kc">true</span>
-<span class="nx">log_type</span><span class="w"> </span><span class="nx">error</span>
-<span class="nx">log_type</span><span class="w"> </span><span class="nx">warning</span>
-<span class="nx">log_type</span><span class="w"> </span><span class="nx">notice</span>
-<span class="nx">log_timestamp</span><span class="w"> </span><span class="kc">true</span>
-<span class="nx">log_timestamp_format</span><span class="w"> </span><span class="o">%</span><span class="nx">Y</span><span class="o">-%</span><span class="nx">m</span><span class="o">-%</span><span class="nx">dT</span><span class="o">%</span><span class="nx">H</span><span class="p">:</span><span class="o">%</span><span class="nx">M</span><span class="p">:</span><span class="o">%</span><span class="nx">S</span>
-<span class="nx">log_dest</span><span class="w"> </span><span class="nx">syslog</span>
-
-<span class="nx">connection</span><span class="w"> </span><span class="nx">main_broker</span>
-<span class="nx">address</span><span class="w"> </span><span class="nx">my</span><span class="p">.</span><span class="nx">main</span><span class="p">.</span><span class="nx">mosquitto</span><span class="p">.</span><span class="nx">broker</span><span class="p">:</span><span class="mi">8883</span>
-<span class="nx">bridge_insecure</span><span class="w"> </span><span class="kc">false</span>
-<span class="nx">bridge_capath</span><span class="w"> </span><span class="o">/</span><span class="nx">etc</span><span class="o">/</span><span class="nx">ssl</span><span class="o">/</span><span class="nx">certs</span><span class="o">/</span>
-<span class="nx">remote_username</span><span class="w"> </span><span class="nx">iotbridge</span>
-<span class="nx">remote_password</span><span class="w"> </span><span class="o">***</span>
-<span class="nx">remote_clientid</span><span class="w"> </span><span class="nx">iot_mosquitto</span><span class="p">.</span><span class="nx">service</span>
-<span class="nx">cleansession</span><span class="w"> </span><span class="kc">false</span>
-<span class="nx">topic</span><span class="w"> </span><span class="nx">HA</span><span class="o">/</span><span class="nx">trigger</span><span class="o">/</span><span class="err">#</span><span class="w"> </span><span class="nx">out</span>
+<p>I then unmounted the eMCC and successfully booted FreeBSD stable/14 from an eMMC card on my Rock64. Two RTL-SDR USG devices were successfully found attached to the USB 3 port (using a powered USB 3 hub):</p>
+<div class="highlight"><pre><span></span><code>ugen2.6: &lt;Generic RTL2832U&gt; at usbus2
+ugen2.7: &lt;Realtek RTL2832U&gt; at usbus2
 </code></pre></div>
 
-<p>This configures a listener on the IoT VLAN and creates a bridge to my main Mosquitto broker. Note that I use TLS for that bridge connection. Home Assistant can also subscribe to my main Mosquitto broker. </p>
-<p>I can now get an MQTT message published from the front gate ESP-01s to MQTT clients on my main Mosquitto broker.</p>
-<h3>Home Assistant integration</h3>
-<p>To create Home Assistant automations that respond to the front gate opening, I created an MQTT Event. Something like this in configuration.yaml:</p>
-<div class="highlight"><pre><span></span><code><span class="nv">mqtt</span>:<span class="w"> </span><span class="o">!</span><span class="k">include</span><span class="w"> </span><span class="nv">mqtt</span>.<span class="nv">yaml</span>
+<h4>Running dump1090-fa</h4>
+<p>To compile <a href="https://github.com/flightaware/dump1090">dump1090-fa</a> you need cmake and pkgconf packages, and need to modify the Makefile. Here's the git diff:</p>
+<div class="highlight"><pre><span></span><code><span class="nv">git</span><span class="w"> </span><span class="nv">diff</span>
+<span class="nv">diff</span><span class="w"> </span><span class="o">--</span><span class="nv">git</span><span class="w"> </span><span class="nv">a</span><span class="o">/</span><span class="nv">Makefile</span><span class="w"> </span><span class="nv">b</span><span class="o">/</span><span class="nv">Makefile</span>
+<span class="no">ind</span><span class="nv">ex</span><span class="w"> </span><span class="nv">abe5b06</span><span class="o">..</span><span class="nv">b85e4bd</span><span class="w"> </span><span class="mi">100644</span>
+<span class="o">---</span><span class="w"> </span><span class="nv">a</span><span class="o">/</span><span class="nv">Makefile</span>
+<span class="o">+++</span><span class="w"> </span><span class="nv">b</span><span class="o">/</span><span class="nv">Makefile</span>
+<span class="o">@@</span><span class="w"> </span><span class="o">-</span><span class="mi">3</span><span class="p">,</span><span class="mi">8</span><span class="w"> </span><span class="o">+</span><span class="mi">3</span><span class="p">,</span><span class="mi">8</span><span class="w"> </span><span class="o">@@</span><span class="w"> </span><span class="nv">PROGNAME</span><span class="o">=</span><span class="nv">dump1090</span>
+<span class="w"> </span><span class="nv">DUMP1090_VERSION</span><span class="w"> </span>?<span class="o">=</span><span class="w"> </span><span class="no">unknown</span>
+
+<span class="w"> </span><span class="nv">CFLAGS</span><span class="w"> </span>?<span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="nv">O3</span><span class="w"> </span><span class="o">-</span><span class="nv">g</span>
+<span class="o">-</span><span class="nv">DUMP1090_CFLAGS</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">-</span><span class="nv">std</span><span class="o">=</span><span class="nv">c11</span><span class="w"> </span><span class="o">-</span><span class="nv">fno</span><span class="o">-</span><span class="nv">common</span><span class="w"> </span><span class="o">-</span><span class="nv">Wall</span><span class="w"> </span><span class="o">-</span><span class="nv">Wmissing</span><span class="o">-</span><span class="nv">declarations</span><span class="w"> </span><span class="o">-</span><span class="nv">Werror</span><span class="w"> </span><span class="o">-</span><span class="nv">Wformat</span><span class="o">-</span><span class="nv">signedness</span><span class="w"> </span><span class="o">-</span><span class="nv">W</span>
+<span class="o">-</span><span class="nv">DUMP1090_CPPFLAGS</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">-</span><span class="nv">I</span><span class="o">.</span><span class="w"> </span><span class="o">-</span><span class="nv">D_POSIX_C_SOURCE</span><span class="o">=</span><span class="mi">200112</span><span class="nv">L</span><span class="w"> </span><span class="o">-</span><span class="nv">DMODES_DUMP1090_VERSION</span><span class="o">=</span>\&quot;<span class="p">$(</span><span class="nv">DUMP1090_VERSION</span><span class="p">)</span>\&quot;<span class="w"> </span><span class="o">-</span><span class="nv">DMODES_DUMP1090_VARIANT</span><span class="o">=</span>\&quot;<span class="nv">dump1090</span><span class="o">-</span><span class="nv">fa</span>\&quot;
+<span class="o">+</span><span class="nv">DUMP1090_CFLAGS</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">-</span><span class="nv">std</span><span class="o">=</span><span class="nv">c11</span><span class="w"> </span><span class="o">-</span><span class="nv">fno</span><span class="o">-</span><span class="nv">common</span><span class="w"> </span><span class="o">-</span><span class="nv">Wall</span><span class="w"> </span><span class="o">-</span><span class="nv">Wmissing</span><span class="o">-</span><span class="nv">declarations</span><span class="w"> </span><span class="o">-</span><span class="nv">W</span>
+<span class="o">+</span><span class="nv">DUMP1090_CPPFLAGS</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">-</span><span class="nv">I</span><span class="o">.</span><span class="w"> </span><span class="o">-</span><span class="nv">D_POSIX_C_SOURCE</span><span class="o">=</span><span class="mi">200112</span><span class="nv">L</span><span class="w"> </span><span class="o">-</span><span class="nv">DMODES_DUMP1090_VERSION</span><span class="o">=</span>\&quot;<span class="p">$(</span><span class="nv">DUMP1090_VERSION</span><span class="p">)</span>\&quot;<span class="w"> </span><span class="o">-</span><span class="nv">DMODES_DUMP1090_VARIANT</span><span class="o">=</span>\&quot;<span class="nv">dump1090</span><span class="o">-</span><span class="nv">fa</span>\&quot;<span class="w"> </span><span class="o">-</span><span class="nv">DM_PI</span><span class="o">=</span><span class="mf">3.14159265358979323846</span><span class="w"> </span><span class="o">-</span><span class="nv">DM_SQRT2</span><span class="o">=</span><span class="mf">1.41421356237309504880</span>
+
+<span class="w"> </span><span class="nv">LIBS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="nv">lpthread</span><span class="w"> </span><span class="o">-</span><span class="nv">lm</span>
+<span class="w"> </span><span class="nv">SDR_OBJ</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">cpu</span><span class="o">.</span><span class="nv">o</span><span class="w"> </span><span class="nv">sdr</span><span class="o">.</span><span class="nv">o</span><span class="w"> </span><span class="nv">fifo</span><span class="o">.</span><span class="nv">o</span><span class="w"> </span><span class="nv">sdr_ifile</span><span class="o">.</span><span class="nv">o</span><span class="w"> </span><span class="nv">dsp</span><span class="o">/</span><span class="nv">helpers</span><span class="o">/</span><span class="nv">tables</span><span class="o">.</span><span class="nv">o</span>
 </code></pre></div>
 
-<p>And mqtt.yaml:</p>
-<div class="highlight"><pre><span></span><code>event: !include mqtt_event.yaml
-device_tracker: !include mqtt_device_tracker.yaml
+<p>The main issue is lack of M_PI, etc, constants. I was able to solve this without declaring macros in NetBSD but couldn't for FreeBSD.
+Once built, I created an RC file <code>/usr/local/etc/rc.d/dump1090</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="ch">#!/bin/sh</span>
+
+<span class="c1"># PROVIDE: dump1090</span>
+<span class="c1"># REQUIRE: DAEMON NETWORKING</span>
+<span class="c1"># KEYWORD: shutdown</span>
+
+<span class="c1">#</span>
+<span class="c1"># Add the following lines to /etc/rc.conf.local, /etc/rc.conf or</span>
+<span class="c1"># /etc/rc.conf.d/dump1090 to enable this service:</span>
+<span class="c1">#</span>
+<span class="c1"># dump1090_enable (bool):       Set to NO by default.</span>
+<span class="c1">#                               Set it to &quot;YES&quot; to enable dump1090.</span>
+<span class="c1"># dump1090_device (str):        Set to 0 by default.</span>
+<span class="c1">#                               RTL-SDR device index.</span>
+
+.<span class="w"> </span>/etc/rc.subr
+
+<span class="nv">name</span><span class="o">=</span>dump1090
+<span class="nv">rcvar</span><span class="o">=</span>dump1090_enable
+
+load_rc_config<span class="w"> </span><span class="nv">$name</span>
+
+:<span class="w"> </span><span class="si">${</span><span class="nv">dump1090_enable</span><span class="p">:=</span><span class="s2">&quot;NO&quot;</span><span class="si">}</span>
+:<span class="w"> </span><span class="si">${</span><span class="nv">dump1090_device</span><span class="p">:=</span><span class="s2">&quot;0&quot;</span><span class="si">}</span>
+:<span class="w"> </span><span class="si">${</span><span class="nv">dump1090_gain</span><span class="p">:=</span><span class="s2">&quot;20&quot;</span><span class="si">}</span>
+
+<span class="nv">NET_OPTIONS</span><span class="o">=</span><span class="s2">&quot;--net-heartbeat 60 --net-ro-size 1300 --net-ro-interval 0.2 --net-ri-port 0 --net-ro-port 30002 --net-sbs-port 30003 --net-bi-port 30004,30104 --net-bo-port 30005&quot;</span>
+
+<span class="nv">pidfile</span><span class="o">=</span><span class="s2">&quot;/var/run/</span><span class="si">${</span><span class="nv">name</span><span class="si">}</span><span class="s2">.pid&quot;</span>
+<span class="nv">procname</span><span class="o">=</span><span class="s2">&quot;/lab/dump1090/</span><span class="si">${</span><span class="nv">name</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="nv">command</span><span class="o">=</span><span class="s2">&quot;/usr/sbin/daemon&quot;</span>
+<span class="nv">command_args</span><span class="o">=</span><span class="s2">&quot;-S -m 3 -s info -l daemon --syslog-tag </span><span class="si">${</span><span class="nv">name</span><span class="si">}</span><span class="s2"> -p </span><span class="si">${</span><span class="nv">pidfile</span><span class="si">}</span><span class="s2"> </span><span class="si">${</span><span class="nv">procname</span><span class="si">}</span><span class="s2"> --quiet --device-index </span><span class="si">${</span><span class="nv">dump1090_device</span><span class="si">}</span><span class="s2"> --gain </span><span class="si">${</span><span class="nv">dump1090_gain</span><span class="si">}</span><span class="s2"> </span><span class="si">${</span><span class="nv">NET_OPTIONS</span><span class="si">}</span><span class="s2">&quot;</span>
+
+run_rc_command<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span>
 </code></pre></div>
 
-<p>And finally, mqtt_event.yaml:</p>
-<div class="highlight"><pre><span></span><code><span class="o">-</span><span class="w"> </span><span class="nx">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Front gate&quot;</span>
-<span class="w">  </span><span class="nx">unique_id</span><span class="p">:</span><span class="w"> </span><span class="nx">mqtt_event</span><span class="p">.</span><span class="nx">front_gate_trigger</span>
-<span class="w">  </span><span class="nx">state_topic</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;HA/trigger/ESP-xxxxxx&quot;</span>
-<span class="w">  </span><span class="nx">event_types</span><span class="p">:</span>
-<span class="w">    </span><span class="o">-</span><span class="w"> </span><span class="s">&quot;triggered&quot;</span>
+<p>And settings in <code>/etc/rc.conf</code>:</p>
+<div class="highlight"><pre><span></span><code>dump1090_enable=&quot;YES&quot;
+dump1090_device=&quot;1&quot;
+dump1090_gain=&quot;20&quot;
 </code></pre></div>
 
-<p>Note the device_tracker in mqtt.yaml. I use <a href="https://github.com/idatum/unifi_tracker">unifi_tracker</a> for home presence detection in Home Assistant. Generally, no household members leave the house without their phone, so I use my Unifi APs to keep track of active phone connections to determine if anyone is home.</p>
-<p>When nobody is home, I take a snapshot from my Unifi G4 Doorbell Pro and send it to my phone using <a href="https://github.com/bbernhard/signal-cli-rest-api">signal-cli-rest-api</a>. Usually this is a picture of a package being delivered.</p>
-<h3>Deployment</h3>
-<p>Wiring up the ESP-01s to be triggered on the RST pin to wake from deep sleep is really straight forward -- plenty of resources online. I used a socket to make the soldering easy and in case I needed to replace the ESP-01s. Also, I use a battery holder for the CR123A to make battery replacement easy.</p>
-<p>I found a small enclosure with an IP65 waterproof rating to house the ESP-01s and the CR123A battery. I sealed up all holes for sensor wires with silicone gel, and added a couple desiccant packets for good measure.</p>
-<p>For the gate magnet, it's a neodymium and about 1cm in diameter. I created an indentation in the wooden gate and use silicone gel as an adhesive. The magnet passes just over the reed switch a short distance from the position when the gate is latched.</p>
-<h3>Remaining RTC code.</h3>
-<p>Here is the remaining ESP-01s code to read from RTC memory.</p>
-<div class="highlight"><pre><span></span><code><span class="o">//</span><span class="w"> </span><span class="n">From</span><span class="w"> </span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">gist</span><span class="o">.</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">nazt</span><span class="o">/</span><span class="n">e401aa099c81f7b0b26bb89acfa916f2</span>
-
-<span class="n">uint32_t</span><span class="w"> </span><span class="n">calculateCRC32</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">uint8_t</span><span class="w"> </span><span class="o">*</span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="n">size_t</span><span class="w"> </span><span class="n">length</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">uint32_t</span><span class="w"> </span><span class="n">crc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0xffffffff</span><span class="p">;</span>
-<span class="w">  </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">length</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">uint8_t</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="n">data</span><span class="o">++</span><span class="p">;</span>
-<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">uint32_t</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0x80</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&gt;&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">      </span><span class="nb nb-Type">bool</span><span class="w"> </span><span class="n">bit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">crc</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mh">0x80000000</span><span class="p">;</span>
-<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">bit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">!</span><span class="n">bit</span><span class="p">;</span>
-<span class="w">      </span><span class="p">}</span>
-<span class="w">      </span><span class="n">crc</span><span class="w"> </span><span class="o">&lt;&lt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">bit</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">crc</span><span class="w"> </span><span class="o">^=</span><span class="w"> </span><span class="mh">0x04c11db7</span><span class="p">;</span>
-<span class="w">      </span><span class="p">}</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">  </span><span class="p">}</span>
-<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">crc</span><span class="p">;</span>
-<span class="p">}</span>
-
-<span class="nb nb-Type">bool</span><span class="w"> </span><span class="n">readRTCWiFi</span><span class="p">(</span><span class="n">TRTCWiFi</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">pRTCWiFi</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="nb nb-Type">bool</span><span class="w"> </span><span class="n">rtcValid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">false</span><span class="p">;</span>
-<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">ESP</span><span class="o">.</span><span class="n">rtcUserMemoryRead</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">uint32_t</span><span class="o">*</span><span class="p">)</span><span class="n">pRTCWiFi</span><span class="p">,</span><span class="w"> </span><span class="n">sizeof</span><span class="p">(</span><span class="n">TRTCWiFi</span><span class="p">)))</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">uint32_t</span><span class="w"> </span><span class="n">crc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">calculateCRC32</span><span class="p">(((</span><span class="n">uint8_t</span><span class="o">*</span><span class="p">)</span><span class="n">pRTCWiFi</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="n">sizeof</span><span class="p">(</span><span class="n">TRTCWiFi</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">4</span><span class="p">);</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">crc</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">pRTCWiFi</span><span class="o">-&gt;</span><span class="n">crc32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">      </span><span class="n">rtcValid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">true</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">  </span><span class="p">}</span>
-<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">rtcValid</span><span class="p">;</span>
-<span class="p">}</span>
+<p>I was then able to remotely connect my PiAware Docker container to dump1090 running on my Rock64. The reason I do this is the Rock64 is in outside weatherproof enclosure close to my 1090MHz and 433MHz antennas. I have a good ethernet connection from the Rock64 to my Docker server.</p>
+<h4>Running rtl_433</h4>
+<p>FreeBSD has a package for rtl-433, so I had no issues running this on my other RTL-SDR USB receiver. If I run rtl_test this is device 0, and the ADS-B one is device 1. I have to specify this in both configurations. For example, here are the relevent lines in /usr/local/etc/rtl_433.conf:</p>
+<div class="highlight"><pre><span></span><code><span class="gu">##</span> Tuner options
+<span class="gh">#</span> as command line option:
+<span class="gh">#</span>   [-d &lt;RTL-SDR USB device index&gt;] (default: 0)
+<span class="gh">#</span>   [-d :&lt;RTL-SDR USB device serial (can be set with rtl_eeprom -s)&gt;]
+<span class="gh">#</span>   [-d &quot;&quot; Open default SoapySDR device
+<span class="gh">#</span>   [-d driver=rtlsdr Open e.g. specific SoapySDR device
+<span class="gh">#</span> default is &quot;0&quot; (RTL-SDR) or &quot;&quot; (SoapySDR)
+device        0
 </code></pre></div>
 
-<h3>Summary</h3>
-<p>I now have a suprisingly reliable way to detect when my house front gate is opened. What also surpised me is the battery has been healthy and I have not had to replace it. I installed it in September 2023 and the VCC is still reading around 3.1 VDC.</p>
-<p>If I open and close the gate slowly enough, I'll get two trigger events. It's fine, I just account for that in any automation.</p>
-<p>One drawback is I can't reliably detect if the gate is not latched. I find out soon enough though if it's windy.</p>
-<p>I chose DIY here, but another option I considered was using a Ring Z-Wave sensor: <a href="https://ring.com/products/alarm-outdoor-contact-sensor">Ring Alarm Outdoor Contact Sensor</a>. Z-Wave has the range and I already have a healthy mesh network. A bit pricy and not as fun though.</p>
-<p>Here is the deployment of the front gate sensor in all it's glory, spouse approved.
-<img alt="Front gate sensor image" src="./images/front_gate_sensor.png"></p>
+<p>I have several 433MHz temperature and humidity sensors and I use rtl_433 to publish to my Mosquitto MQTT broker, with of course the obligatory Home Assistant integration.</p>
+<h4>Summary</h4>
+<p>The Rock64 runs FreeBSD 14 well and I've been using it as both an ADS-B and rtl_433 receiver for serveral weeks now. I'm more comfortable with NetBSD's <code>build.sh</code>, but building a custom FreeBSD stable/14 kernel was straight forward.</p>
+<p>I also have a <a href="https://wiki.pine64.org/wiki/ROCKPro64">RockPro64</a> device and I'll keep NetBSD 10 on that -- runs really well.</p>
+<p>Overall, a fun project and the Rock64 is a fun little device.</p>
     <div class="clear"></div>
 
     <div class="hidden">
         <br/>
-        <a href="./category/home-automation.html" rel="tag">Home automation</a>
+        <a href="./category/ads-b.html" rel="tag">ADS-B</a>
     </div>
 </article>            <section id="content" class="body">
                 <h1>Other notes</h1>
                 <hr />
                 <ol id="posts-list" class="hfeed">
+        <li><article class="hentry">
+            <header>
+                <h1><a href="./remote-front-gate-sensor.html" rel="bookmark"
+                        title="Permalink to Remote front gate sensor.">Remote front gate sensor.</a></h1>
+            </header>
+
+            <div class="entry-content">
+            <p>Notes on using an ESP-01s for my house front gate sensor.</p>
+            <br/>
+            </div>
+        </article></li>
         <li><article class="hentry">
             <header>
                 <h1><a href="./upgrading-from-netbsd-51-to-10_rc1.html" rel="bookmark"
