@@ -76,29 +76,28 @@
 <span class="n">rk3328</span><span class="o">-</span><span class="n">rock64</span><span class="o">.</span><span class="n">dtb_load</span><span class="o">=</span><span class="s2">&quot;YES&quot;</span>
 </code></pre></div>
 
-<p>I then unmounted the eMCC and successfully booted FreeBSD stable/14 from an eMMC card on my Rock64. Two RTL-SDR USG devices were successfully found attached to the USB 3 port (using a powered USB 3 hub):</p>
+<p>I then unmounted the eMCC and successfully booted FreeBSD stable/14 from an eMMC card on my Rock64. Two RTL-SDR USB devices were successfully found attached to the USB 3 port (using a powered USB 3 hub):</p>
 <div class="highlight"><pre><span></span><code>ugen2.6: &lt;Generic RTL2832U&gt; at usbus2
 ugen2.7: &lt;Realtek RTL2832U&gt; at usbus2
 </code></pre></div>
 
 <h4>Running dump1090-fa</h4>
-<p>To compile <a href="https://github.com/flightaware/dump1090">dump1090-fa</a> you need cmake and pkgconf packages, and need to modify the Makefile. Here's the git diff:</p>
-<div class="highlight"><pre><span></span><code><span class="nv">git</span><span class="w"> </span><span class="nv">diff</span>
-<span class="nv">diff</span><span class="w"> </span><span class="o">--</span><span class="nv">git</span><span class="w"> </span><span class="nv">a</span><span class="o">/</span><span class="nv">Makefile</span><span class="w"> </span><span class="nv">b</span><span class="o">/</span><span class="nv">Makefile</span>
-<span class="no">ind</span><span class="nv">ex</span><span class="w"> </span><span class="nv">abe5b06</span><span class="o">..</span><span class="nv">b85e4bd</span><span class="w"> </span><span class="mi">100644</span>
-<span class="o">---</span><span class="w"> </span><span class="nv">a</span><span class="o">/</span><span class="nv">Makefile</span>
-<span class="o">+++</span><span class="w"> </span><span class="nv">b</span><span class="o">/</span><span class="nv">Makefile</span>
-<span class="o">@@</span><span class="w"> </span><span class="o">-</span><span class="mi">3</span><span class="p">,</span><span class="mi">8</span><span class="w"> </span><span class="o">+</span><span class="mi">3</span><span class="p">,</span><span class="mi">8</span><span class="w"> </span><span class="o">@@</span><span class="w"> </span><span class="nv">PROGNAME</span><span class="o">=</span><span class="nv">dump1090</span>
-<span class="w"> </span><span class="nv">DUMP1090_VERSION</span><span class="w"> </span>?<span class="o">=</span><span class="w"> </span><span class="no">unknown</span>
+<p>To compile <a href="https://github.com/flightaware/dump1090">dump1090-fa</a> you need cmake and pkgconf packages, and need to modify the Makefile. Here's the <code>git diff</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="gh">diff --git a/Makefile b/Makefile</span>
+<span class="gh">index abe5b06..b85e4bd 100644</span>
+<span class="gd">--- a/Makefile</span>
+<span class="gi">+++ b/Makefile</span>
+<span class="gu">@@ -3,8 +3,8 @@ PROGNAME=dump1090</span>
+<span class="w"> </span>DUMP1090_VERSION ?= unknown
 
-<span class="w"> </span><span class="nv">CFLAGS</span><span class="w"> </span>?<span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="nv">O3</span><span class="w"> </span><span class="o">-</span><span class="nv">g</span>
-<span class="o">-</span><span class="nv">DUMP1090_CFLAGS</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">-</span><span class="nv">std</span><span class="o">=</span><span class="nv">c11</span><span class="w"> </span><span class="o">-</span><span class="nv">fno</span><span class="o">-</span><span class="nv">common</span><span class="w"> </span><span class="o">-</span><span class="nv">Wall</span><span class="w"> </span><span class="o">-</span><span class="nv">Wmissing</span><span class="o">-</span><span class="nv">declarations</span><span class="w"> </span><span class="o">-</span><span class="nv">Werror</span><span class="w"> </span><span class="o">-</span><span class="nv">Wformat</span><span class="o">-</span><span class="nv">signedness</span><span class="w"> </span><span class="o">-</span><span class="nv">W</span>
-<span class="o">-</span><span class="nv">DUMP1090_CPPFLAGS</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">-</span><span class="nv">I</span><span class="o">.</span><span class="w"> </span><span class="o">-</span><span class="nv">D_POSIX_C_SOURCE</span><span class="o">=</span><span class="mi">200112</span><span class="nv">L</span><span class="w"> </span><span class="o">-</span><span class="nv">DMODES_DUMP1090_VERSION</span><span class="o">=</span>\&quot;<span class="p">$(</span><span class="nv">DUMP1090_VERSION</span><span class="p">)</span>\&quot;<span class="w"> </span><span class="o">-</span><span class="nv">DMODES_DUMP1090_VARIANT</span><span class="o">=</span>\&quot;<span class="nv">dump1090</span><span class="o">-</span><span class="nv">fa</span>\&quot;
-<span class="o">+</span><span class="nv">DUMP1090_CFLAGS</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">-</span><span class="nv">std</span><span class="o">=</span><span class="nv">c11</span><span class="w"> </span><span class="o">-</span><span class="nv">fno</span><span class="o">-</span><span class="nv">common</span><span class="w"> </span><span class="o">-</span><span class="nv">Wall</span><span class="w"> </span><span class="o">-</span><span class="nv">Wmissing</span><span class="o">-</span><span class="nv">declarations</span><span class="w"> </span><span class="o">-</span><span class="nv">W</span>
-<span class="o">+</span><span class="nv">DUMP1090_CPPFLAGS</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">-</span><span class="nv">I</span><span class="o">.</span><span class="w"> </span><span class="o">-</span><span class="nv">D_POSIX_C_SOURCE</span><span class="o">=</span><span class="mi">200112</span><span class="nv">L</span><span class="w"> </span><span class="o">-</span><span class="nv">DMODES_DUMP1090_VERSION</span><span class="o">=</span>\&quot;<span class="p">$(</span><span class="nv">DUMP1090_VERSION</span><span class="p">)</span>\&quot;<span class="w"> </span><span class="o">-</span><span class="nv">DMODES_DUMP1090_VARIANT</span><span class="o">=</span>\&quot;<span class="nv">dump1090</span><span class="o">-</span><span class="nv">fa</span>\&quot;<span class="w"> </span><span class="o">-</span><span class="nv">DM_PI</span><span class="o">=</span><span class="mf">3.14159265358979323846</span><span class="w"> </span><span class="o">-</span><span class="nv">DM_SQRT2</span><span class="o">=</span><span class="mf">1.41421356237309504880</span>
+<span class="w"> </span>CFLAGS ?= -O3 -g
+<span class="gd">-DUMP1090_CFLAGS := -std=c11 -fno-common -Wall -Wmissing-declarations -Werror -Wformat-signedness -W</span>
+<span class="gd">-DUMP1090_CPPFLAGS := -I. -D_POSIX_C_SOURCE=200112L -DMODES_DUMP1090_VERSION=\&quot;$(DUMP1090_VERSION)\&quot; -DMODES_DUMP1090_VARIANT=\&quot;dump1090-fa\&quot;</span>
+<span class="gi">+DUMP1090_CFLAGS := -std=c11 -fno-common -Wall -Wmissing-declarations -W</span>
+<span class="gi">+DUMP1090_CPPFLAGS := -I. -D_POSIX_C_SOURCE=200112L -DMODES_DUMP1090_VERSION=\&quot;$(DUMP1090_VERSION)\&quot; -DMODES_DUMP1090_VARIANT=\&quot;dump1090-fa\&quot; -DM_PI=3.14159265358979323846 -DM_SQRT2=1.41421356237309504880</span>
 
-<span class="w"> </span><span class="nv">LIBS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="nv">lpthread</span><span class="w"> </span><span class="o">-</span><span class="nv">lm</span>
-<span class="w"> </span><span class="nv">SDR_OBJ</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">cpu</span><span class="o">.</span><span class="nv">o</span><span class="w"> </span><span class="nv">sdr</span><span class="o">.</span><span class="nv">o</span><span class="w"> </span><span class="nv">fifo</span><span class="o">.</span><span class="nv">o</span><span class="w"> </span><span class="nv">sdr_ifile</span><span class="o">.</span><span class="nv">o</span><span class="w"> </span><span class="nv">dsp</span><span class="o">/</span><span class="nv">helpers</span><span class="o">/</span><span class="nv">tables</span><span class="o">.</span><span class="nv">o</span>
+<span class="w"> </span>LIBS = -lpthread -lm
+<span class="w"> </span>SDR_OBJ = cpu.o sdr.o fifo.o sdr_ifile.o dsp/helpers/tables.o
 </code></pre></div>
 
 <p>The main issue is lack of M_PI, etc, constants. I was able to solve this without declaring macros in NetBSD but couldn't for FreeBSD.
