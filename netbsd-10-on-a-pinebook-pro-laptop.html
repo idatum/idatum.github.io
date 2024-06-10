@@ -49,8 +49,9 @@
 <p>I grabbed the <a href="https://nycdn.netbsd.org/pub/arm/">image specifically listed for the Pinebook Pro</a>. You also have to grab the U-BOOT for the Pinebook Pro from <a href="http://cdn.netbsd.org/pub/pkgsrc/current/pkgsrc/sysutils/u-boot-pinebook-pro/index.html">pkgsrc</a>. I followed the <a href="https://wiki.netbsd.org/ports/evbarm/rockchip/">installation documentation</a>, put the eMMC card back in, and the bottom cover back on.</p>
 <p>BTW, the PINE64 <a href="https://pine64.org/documentation/Pinebook_Pro/">documentation for the Pinebook Pro</a> is useful, including notes on safely removing the bottom cover.</p>
 <p>The first boot is similar to the RockPro64, except of course you don't need a serial console or seperate monitor. Logged in as root, the first thing I did was check dmesg[0].</p>
-<p>The included WiFi card is not supported by 10-GENERIC, so I grabbed a Type A USB ethernet adapter (<code>axen</code> driver) and plugged it in and NetBSD recognized it on the USB2 port. Before I connected a network cable, I edited /etc/dhcpcd.conf with specific interface settings that suite my IPv6-only network best. I started with ethernet first since I knew I'd be installing many binary packages from pkgsrc (<code>urtwn</code> Edimax USB WiFi is now what I generally use).</p>
-<p>Now connected to the network, I ran sysinst and configured everything needed to reboot and start installing binary packages. I played around with ctwm, Firefox102, Thunderbird102, NetSurf, xephem, and others. Cool! I have a NetBSD laptop 😊</p>
+<p>The included WiFi card is not supported by 10-GENERIC, so I grabbed a Type A USB ethernet adapter (<code>axen</code> driver) and plugged it in and NetBSD recognized it on the USB2 port. Before I connected a network cable, I edited /etc/dhcpcd.conf with specific interface settings that better suits my IPv6-only network. I started with ethernet first since I knew I'd be installing many binary packages from pkgsrc (<code>urtwn</code> Edimax USB WiFi is now what I generally use).</p>
+<p>Now connected to the network, I ran sysinst and configured everything needed to reboot and start installing binary packages. I played around with ctwm, Firefox102, Thunderbird102, NetSurf, xephem, and others.</p>
+<p>Cool! I have a NetBSD laptop 😊</p>
 <h4>Hardware</h4>
 <p>The screen is good and the backlight can be controlled via sysctl. The keyboard is also good once you get familiar using Fn for common keystrokes.</p>
 <p>The touchpad is not great but not terrible. I did upgrade the firmware (see PINE64 docs) and it helped with sensitivity. I have 3 main issues with the touchpad:</p>
@@ -80,7 +81,7 @@
 </li>
 </ul>
 <h4>Summary</h4>
-<p>It's great to have a NetBSD laptop around the house, and I'm happy with NetBSD 10-GENERIC on the Pinebook Pro.</p>
+<p>It's great to finally have a BSD laptop around the house, and I'm happy with NetBSD 10-RELEASE on the Pinebook Pro.</p>
 <p>One motivation was to have a non-work laptop handy for things I need to check on in my home lab. For example, if want to do a late night check on how that ZFS scrub is going on my FreeBSD server, I don't have to use tmux on my phone, I can grab my shiny new NetBSD laptop instead. Perfect.</p>
 <p>[0]dmesg</p>
 <div class="highlight"><pre><span></span><code><span class="o">[</span><span class="n">     1.000000</span><span class="o">]</span><span class="w"> </span><span class="n">Copyright</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="w"> </span><span class="mi">1996</span><span class="p">,</span><span class="w"> </span><span class="mi">1997</span><span class="p">,</span><span class="w"> </span><span class="mi">1998</span><span class="p">,</span><span class="w"> </span><span class="mi">1999</span><span class="p">,</span><span class="w"> </span><span class="mi">2000</span><span class="p">,</span><span class="w"> </span><span class="mi">2001</span><span class="p">,</span><span class="w"> </span><span class="mi">2002</span><span class="p">,</span><span class="w"> </span><span class="mi">2003</span><span class="p">,</span>
