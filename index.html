@@ -68,10 +68,13 @@
 <p>Audio and webcam work fine. For the webcam, I had to specially compile OpenCV 4.9 to get this to work with the webcam. It seems there is an issue with kernel video buffer reallocation when changing cam resolution. I'm still debugging this (AMD64 has the same issue). <code>ffmpeg</code> works though, and I can capture at full resolution. But this is not a work laptop and I have zero desire for video calls 😊</p>
 </li>
 <li>
-<p>I use <code>estd</code> to keep the CPU speed at check until needed. There is no active cooling, so if you do a build, you might want to put a fan over the keyboard and/or create separation between the laptop bottom and whaterver surface it's resting on. To control things further, use <code>schedctl -A 4,5</code> along with <code>security.models.extensions.user_set_cpu_affinity=1</code> to use the faster cores.</p>
+<p>I use <code>estd</code> to keep the CPU speed at check until needed. There is no active cooling, so if you do a build, you might want to put a fan over the keyboard and/or create separation between the laptop bottom and the surface it's resting on. To control things further, use <code>schedctl -A 4,5</code> along with <code>security.models.extensions.user_set_cpu_affinity=1</code> to use the faster cores.</p>
 </li>
 <li>
 <p>The USB C port works for charging, but not for much else in my testing. NetBSD did recognize my Lenovo USB C docking station as an ethernet <code>cdce</code> device and this seems stable. I also tried a USB C <code>ure</code> device and that did not work on the USB C port, but did using a USB3 Type C to A adapter on the USB3 Type A port only after boot. It was unstable though so I don't recommend. <strong>Ultimately for best stability</strong>, I use a USB3 <code>axen</code> on the USB2 port (via USB hub) and a <code>urtwn</code> on the Type A USB3 port.</p>
+</li>
+<li>
+<p>I pretty quickly replaced the Manjero Linux that came installed on the eMCC. But you can always install something else on a USB memory stick and that will boot on the USB2 port before the eMMC. This will be handy when I start experimenting with NetBSD-CURRENT.</p>
 </li>
 </ul>
 <h4>Summary</h4>

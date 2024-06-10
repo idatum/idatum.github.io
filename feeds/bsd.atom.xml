@@ -28,10 +28,13 @@
 &lt;p&gt;Audio and webcam work fine. For the webcam, I had to specially compile OpenCV 4.9 to get this to work with the webcam. It seems there is an issue with kernel video buffer reallocation when changing cam resolution. I'm still debugging this (AMD64 has the same issue). &lt;code&gt;ffmpeg&lt;/code&gt; works though, and I can capture at full resolution. But this is not a work laptop and I have zero desire for video calls 😊&lt;/p&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;I use &lt;code&gt;estd&lt;/code&gt; to keep the CPU speed at check until needed. There is no active cooling, so if you do a build, you might want to put a fan over the keyboard and/or create separation between the laptop bottom and whaterver surface it's resting on. To control things further, use &lt;code&gt;schedctl -A 4,5&lt;/code&gt; along with &lt;code&gt;security.models.extensions.user_set_cpu_affinity=1&lt;/code&gt; to use the faster cores.&lt;/p&gt;
+&lt;p&gt;I use &lt;code&gt;estd&lt;/code&gt; to keep the CPU speed at check until needed. There is no active cooling, so if you do a build, you might want to put a fan over the keyboard and/or create separation between the laptop bottom and the surface it's resting on. To control things further, use &lt;code&gt;schedctl -A 4,5&lt;/code&gt; along with &lt;code&gt;security.models.extensions.user_set_cpu_affinity=1&lt;/code&gt; to use the faster cores.&lt;/p&gt;
 &lt;/li&gt;
 &lt;li&gt;
 &lt;p&gt;The USB C port works for charging, but not for much else in my testing. NetBSD did recognize my Lenovo USB C docking station as an ethernet &lt;code&gt;cdce&lt;/code&gt; device and this seems stable. I also tried a USB C &lt;code&gt;ure&lt;/code&gt; device and that did not work on the USB C port, but did using a USB3 Type C to A adapter on the USB3 Type A port only after boot. It was unstable though so I don't recommend. &lt;strong&gt;Ultimately for best stability&lt;/strong&gt;, I use a USB3 &lt;code&gt;axen&lt;/code&gt; on the USB2 port (via USB hub) and a &lt;code&gt;urtwn&lt;/code&gt; on the Type A USB3 port.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;I pretty quickly replaced the Manjero Linux that came installed on the eMCC. But you can always install something else on a USB memory stick and that will boot on the USB2 port before the eMMC. This will be handy when I start experimenting with NetBSD-CURRENT.&lt;/p&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;h4&gt;Summary&lt;/h4&gt;
