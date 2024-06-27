@@ -47,8 +47,8 @@
 <p>I grabbed the <a href="https://nycdn.netbsd.org/pub/arm/">image specifically listed for the Pinebook Pro</a>. You also have to grab the U-BOOT for the Pinebook Pro from <a href="http://cdn.netbsd.org/pub/pkgsrc/current/pkgsrc/sysutils/u-boot-pinebook-pro/index.html">pkgsrc</a>. I followed the <a href="https://wiki.netbsd.org/ports/evbarm/rockchip/">installation documentation</a>, put the eMMC card back in, and the bottom cover back on.</p>
 <p>BTW, the PINE64 <a href="https://pine64.org/documentation/Pinebook_Pro/">documentation for the Pinebook Pro</a> is useful, including notes on safely removing the bottom cover.</p>
 <p>The first boot is similar to the RockPro64, except of course you don't need a serial console or seperate monitor. Logged in as root, the first thing I did was check dmesg[0].</p>
-<p>The included WiFi card is not supported by 10-RELEASE, so I grabbed a Type A USB ethernet adapter (<code>axen</code> driver) and plugged it in and NetBSD recognized it on the USB2 port. Before I connected a network cable, I edited /etc/dhcpcd.conf with specific interface settings that better suits my IPv6-only network. I started with ethernet first since I knew I'd be installing many binary packages from pkgsrc (<code>urtwn</code> Edimax USB WiFi is now what I generally use).</p>
-<p>Now connected to the network, I ran sysinst and configured everything needed to reboot and start installing binary packages. I played around with the default ctwm window manager, Firefox102, Thunderbird102, NetSurf, xephem, and others.</p>
+<p>The included WiFi card is not supported by 10-RELEASE (more than just missing firmware, but NetBSD-GENERIC looks more promising), so I grabbed a Type A USB ethernet adapter (<code>axen</code> driver) and plugged it in and NetBSD recognized it on the USB2 port. Before I connected a network cable, I edited /etc/dhcpcd.conf with specific interface settings that better suits my IPv6-only network. I started with ethernet first since I knew I'd be installing many binary packages from pkgsrc (<code>urtwn</code> Edimax USB WiFi is now what I generally use).</p>
+<p>Now connected to the network, I ran sysinst and configured everything needed to reboot and start installing binary packages. I played around with the default ctwm window manager, Firefox115, Thunderbird115, NetSurf, xephem, and others.</p>
 <p>Cool! I have a NetBSD laptop 😊</p>
 <h4>Hardware</h4>
 <p>The screen is good and the backlight can be controlled via sysctl. The keyboard is also good once you get familiar using Fn for common keystrokes.</p>
@@ -66,7 +66,7 @@
 <p>If you want a serial console for debugging, etc, there is a board switch that changes the audio stereo jack to a UART. I used a simple audio stereo jack breakout and followed the PINE64 docs to get this to work with a USB serial adapter (mine is a USB RTCP2104 TTL adapter) that can handle a speed of 1500000.</p>
 </li>
 <li>
-<p>Audio and webcam work fine. For the webcam, I had to specially compile OpenCV 4.9 to get this to work with the webcam. It seems there is an issue with kernel video buffer reallocation when changing cam resolution. I'm still debugging this (AMD64 has the same issue). <code>ffmpeg</code> works though, and I can capture at full resolution. But this is not a work laptop and I have zero desire for video calls 😊</p>
+<p>Audio and webcam work fine. For audio, I wasn't able to choose between speakers or headphone jack only. For the webcam, I had to specially compile OpenCV 4.9 to get this to work with the webcam. It seems there is an issue with kernel video buffer reallocation when changing cam resolution. I'm still debugging this (AMD64 has the same issue). <code>ffmpeg</code> works though, and I can capture at full resolution. But this is not a work laptop and I have zero desire for video calls 😊</p>
 </li>
 <li>
 <p>I use <code>estd</code> to keep the CPU speed at check until needed. There is no active cooling, so if you do a build, you might want to put a fan over the keyboard and/or create separation between the laptop bottom and the surface it's resting on. To control things further, use <code>schedctl -A 4,5</code> along with <code>security.models.extensions.user_set_cpu_affinity=1</code> to use the faster cores.</p>
@@ -75,7 +75,7 @@
 <p>The USB C port works for charging, but not for much else in my testing. NetBSD did recognize my Lenovo USB C docking station as an ethernet <code>cdce</code> device and this seems stable. I also tried a USB C <code>ure</code> device and that did not work on the USB C port, but did using a USB3 Type C to A adapter on the USB3 Type A port only after boot. It was unstable though so I don't recommend. <strong>Ultimately for best stability</strong>, I use a USB3 <code>axen</code> on the USB2 port (via USB hub) and a <code>urtwn</code> on the Type A USB3 port.</p>
 </li>
 <li>
-<p>I pretty quickly replaced the Manjaro Linux that came installed on the eMCC. But you can always install something else on a USB memory stick and that will boot on the USB2 port before the eMMC. This will be handy when I start experimenting with NetBSD-CURRENT.</p>
+<p>I pretty quickly replaced the Manjaro Linux that came installed on the eMCC. But you can always install something else on a USB memory stick or SD card and that will boot on the USB2 port before the eMMC. This will be handy when I start experimenting with NetBSD-CURRENT.</p>
 </li>
 </ul>
 <h4>Summary</h4>
