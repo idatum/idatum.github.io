@@ -56,7 +56,9 @@ pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
 &lt;span class="normal"&gt;12&lt;/span&gt;
 &lt;span class="normal"&gt;13&lt;/span&gt;
 &lt;span class="normal"&gt;14&lt;/span&gt;
-&lt;span class="normal"&gt;15&lt;/span&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="ch"&gt;#!/bin/sh&lt;/span&gt;
+&lt;span class="normal"&gt;15&lt;/span&gt;
+&lt;span class="normal"&gt;16&lt;/span&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="ch"&gt;#!/bin/sh&lt;/span&gt;
+&lt;span class="c1"&gt;# Open local port on FreeBSD VM to connect locally.&lt;/span&gt;
 &lt;span class="nv"&gt;host&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;your-freebsd-vm-dns-name.net
 &lt;span class="nv"&gt;home_lab_ssh_port&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;5000&lt;/span&gt;
 &lt;span class="nv"&gt;vm_ssh_port&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;5001&lt;/span&gt;
@@ -68,13 +70,13 @@ pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
 &lt;span class="w"&gt;        &lt;/span&gt;-o&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;ExitOnForwardFailure&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;yes&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="se"&gt;\&lt;/span&gt;
 &lt;span class="w"&gt;        &lt;/span&gt;-o&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;ServerAliveInterval&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;2&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="se"&gt;\&lt;/span&gt;
 &lt;span class="w"&gt;        &lt;/span&gt;-o&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;ServerAliveCountMax&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;2&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="se"&gt;\&lt;/span&gt;
-&lt;span class="w"&gt;        &lt;/span&gt;-6&lt;span class="w"&gt; &lt;/span&gt;-p&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;$home_lab_ssh_port&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;azureuser@&lt;span class="nv"&gt;$host&lt;/span&gt;
+&lt;span class="w"&gt;        &lt;/span&gt;-6&lt;span class="w"&gt; &lt;/span&gt;-p&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;$vm_ssh_port&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;azureuser@&lt;span class="nv"&gt;$host&lt;/span&gt;
 &lt;span class="w"&gt;    &lt;/span&gt;sleep&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;1&lt;/span&gt;
 &lt;span class="k"&gt;done&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/div&gt;
 
 &lt;p&gt;&lt;code&gt;host&lt;/code&gt; is your DNS record that has your VM's IPv4 address. &lt;code&gt;home_lab_ssh_port&lt;/code&gt; is the external SSH IPv6 port to access your home lab. &lt;code&gt;vm_ssh_port&lt;/code&gt; is the port we configured earlier in your VM's NSG rules and sshd_config. &lt;code&gt;vm_local_port&lt;/code&gt; is the port available at localhost on your VM.&lt;/p&gt;
-&lt;p&gt;Once the SSH reverse tunnel is set up, you can log in from your FreeBSD VM to your home SSH server. From a remote client, use something like &lt;code&gt;ssh -t -p 5001 azureuser@your-freebsd-vm-dns-name.net ssh -p 5002 your_home_username@localhost:5002&lt;/code&gt; to log into your home SSH server directly. This connects to your FreeBSD VM and creates a terminal session via ssh with your home SSH server. You're in!&lt;/p&gt;
+&lt;p&gt;Once the SSH reverse tunnel is set up, you can log in from your FreeBSD VM to your home SSH server. From a remote client, use something like &lt;code&gt;ssh -t -p 5001 azureuser@your-freebsd-vm-dns-name.net ssh -p 5002 your_home_username@localhost&lt;/code&gt; to log into your home SSH server directly. This connects to your FreeBSD VM and creates a terminal session via ssh with your home SSH server. You're in!&lt;/p&gt;
 &lt;h4&gt;Additional tunnels&lt;/h4&gt;
 &lt;p&gt;We now have a way to remotely connect to your home lab via a reverse SSH tunnel. What about remotely connecting to other home lab servers via your remote laptop? This needs another level if indirection with our SSH tunnels. Let's say you have Home Assistant running on an internal home lab address homeassistant.local. We need a way to tunnel from the home SSH server to that address and port. It looks like this:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="n"&gt;remote&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;client&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;--&amp;gt;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;FreeBSD&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;VM&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;--&amp;gt;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;home&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;SSH&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;server&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;--&amp;gt;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;homeassistant&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="kr"&gt;local&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;
@@ -91,13 +93,13 @@ pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
 &lt;span class="normal"&gt; 8&lt;/span&gt;
 &lt;span class="normal"&gt; 9&lt;/span&gt;
 &lt;span class="normal"&gt;10&lt;/span&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="ch"&gt;#!/bin/sh&lt;/span&gt;
-
+&lt;span class="c1"&gt;# Open local port on home SSH server to connect to HA.&lt;/span&gt;
 &lt;span class="nv"&gt;host&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;homeassistant.local
 &lt;span class="nv"&gt;ha_port&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;8123&lt;/span&gt;
 
 &lt;span class="k"&gt;while&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nb"&gt;true&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
 &lt;span class="k"&gt;do&lt;/span&gt;
-&lt;span class="w"&gt;    &lt;/span&gt;ssh&lt;span class="w"&gt; &lt;/span&gt;-NT&lt;span class="w"&gt; &lt;/span&gt;-L&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;$ha_port&lt;/span&gt;:localhost:&lt;span class="nv"&gt;$ha_port&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;labuser@&lt;span class="nv"&gt;$host&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;ssh&lt;span class="w"&gt; &lt;/span&gt;-NT&lt;span class="w"&gt; &lt;/span&gt;-L&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;$ha_port&lt;/span&gt;:localhost:&lt;span class="nv"&gt;$ha_port&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;ha_user@&lt;span class="nv"&gt;$host&lt;/span&gt;
 &lt;span class="w"&gt;    &lt;/span&gt;sleep&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;1&lt;/span&gt;
 &lt;span class="k"&gt;done&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/div&gt;
@@ -117,9 +119,8 @@ pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
 &lt;span class="normal"&gt;11&lt;/span&gt;
 &lt;span class="normal"&gt;12&lt;/span&gt;
 &lt;span class="normal"&gt;13&lt;/span&gt;
-&lt;span class="normal"&gt;14&lt;/span&gt;
-&lt;span class="normal"&gt;15&lt;/span&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="ch"&gt;#!/bin/sh&lt;/span&gt;
-
+&lt;span class="normal"&gt;14&lt;/span&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="ch"&gt;#!/bin/sh&lt;/span&gt;
+&lt;span class="c1"&gt;# Open local port on FreeBSD VM to connect to HA port on home SSH server.&lt;/span&gt;
 &lt;span class="nv"&gt;vm_local_port&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;5002&lt;/span&gt;
 &lt;span class="nv"&gt;ha_port&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;8123&lt;/span&gt;
 
@@ -129,8 +130,7 @@ pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
 &lt;span class="w"&gt;        &lt;/span&gt;-o&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;CheckHostIp&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;no&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="se"&gt;\&lt;/span&gt;
 &lt;span class="w"&gt;        &lt;/span&gt;-o&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;ExitOnForwardFailure&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;yes&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="se"&gt;\&lt;/span&gt;
 &lt;span class="w"&gt;        &lt;/span&gt;-v&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="se"&gt;\&lt;/span&gt;
-&lt;span class="w"&gt;        &lt;/span&gt;-p&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;$vm_local_port&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;labuser@localhost
-
+&lt;span class="w"&gt;        &lt;/span&gt;-p&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;$vm_local_port&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;home_user@localhost
 &lt;span class="w"&gt;    &lt;/span&gt;sleep&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;1&lt;/span&gt;
 &lt;span class="k"&gt;done&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/div&gt;
@@ -149,10 +149,12 @@ pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
 &lt;span class="normal"&gt;11&lt;/span&gt;
 &lt;span class="normal"&gt;12&lt;/span&gt;
 &lt;span class="normal"&gt;13&lt;/span&gt;
-&lt;span class="normal"&gt;14&lt;/span&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="ch"&gt;#!/bin/sh&lt;/span&gt;
-
+&lt;span class="normal"&gt;14&lt;/span&gt;
+&lt;span class="normal"&gt;15&lt;/span&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="ch"&gt;#!/bin/sh&lt;/span&gt;
+&lt;span class="c1"&gt;# Client to open local HA port connected to HA port on FreeBSD VM connected to HA port on home SSH server.&lt;/span&gt;
+&lt;span class="nv"&gt;host&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;your-freebsd-vm-dns-name.net
 &lt;span class="nv"&gt;ha_port&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;8123&lt;/span&gt;
-&lt;span class="nv"&gt;vm_local_port&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;5002&lt;/span&gt;
+&lt;span class="nv"&gt;vm_ssh_port&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;5001&lt;/span&gt;
 
 &lt;span class="k"&gt;while&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nb"&gt;true&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
 &lt;span class="k"&gt;do&lt;/span&gt;
@@ -160,7 +162,7 @@ pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
 &lt;span class="w"&gt;        &lt;/span&gt;-o&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;CheckHostIp&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;no&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="se"&gt;\&lt;/span&gt;
 &lt;span class="w"&gt;        &lt;/span&gt;-o&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;ExitOnForwardFailure&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;yes&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="se"&gt;\&lt;/span&gt;
 &lt;span class="w"&gt;        &lt;/span&gt;-v&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="se"&gt;\&lt;/span&gt;
-&lt;span class="w"&gt;        &lt;/span&gt;-p&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;$vm_local_port&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;labuser@localhost
+&lt;span class="w"&gt;        &lt;/span&gt;-4&lt;span class="w"&gt; &lt;/span&gt;-p&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;$vm_ssh_port&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;azureuser@&lt;span class="nv"&gt;$host&lt;/span&gt;
 &lt;span class="w"&gt;    &lt;/span&gt;sleep&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;1&lt;/span&gt;
 &lt;span class="k"&gt;done&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/div&gt;
