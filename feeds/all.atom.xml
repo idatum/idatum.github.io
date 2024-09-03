@@ -58,7 +58,7 @@ pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
 &lt;span class="normal"&gt;14&lt;/span&gt;
 &lt;span class="normal"&gt;15&lt;/span&gt;
 &lt;span class="normal"&gt;16&lt;/span&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="ch"&gt;#!/bin/sh&lt;/span&gt;
-&lt;span class="c1"&gt;# Open local port on FreeBSD VM to connect locally.&lt;/span&gt;
+&lt;span class="c1"&gt;# Open local port on FreeBSD VM to connect to this home SSH server.&lt;/span&gt;
 &lt;span class="nv"&gt;host&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;your-freebsd-vm-dns-name.net
 &lt;span class="nv"&gt;home_lab_ssh_port&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;5000&lt;/span&gt;
 &lt;span class="nv"&gt;vm_ssh_port&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;5001&lt;/span&gt;
