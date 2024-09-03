@@ -40,7 +40,7 @@ dhclient_program=&amp;quot;/usr/local/sbin/dual-dhclient&amp;quot;
 pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
 
-&lt;p&gt;Now add your home SSH server's client public SSH key to your FreeBSD's &lt;code&gt;~/.ssh/authorized_keys&lt;/code&gt;. This let's your SSH server connect to your FreeBSD VM.&lt;/p&gt;
+&lt;p&gt;Now add your home SSH server's client public SSH key to your FreeBSD's &lt;code&gt;~/.ssh/authorized_keys&lt;/code&gt;. This let's the SSH server connect to the FreeBSD VM.&lt;/p&gt;
 &lt;p&gt;I wrote a script that sets up the reverse SSH tunnel, running as the same user that has the SSH client key configured on the VM:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;&lt;span class="normal"&gt; 1&lt;/span&gt;
 &lt;span class="normal"&gt; 2&lt;/span&gt;
@@ -76,11 +76,11 @@ pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
 &lt;p&gt;&lt;code&gt;host&lt;/code&gt; is your DNS record that has your VM's IPv4 address. &lt;code&gt;home_lab_ssh_port&lt;/code&gt; is the external SSH IPv6 port to access your home lab. &lt;code&gt;vm_ssh_port&lt;/code&gt; is the port we configured earlier in your VM's NSG rules and sshd_config. &lt;code&gt;vm_local_port&lt;/code&gt; is the port available at localhost on your VM.&lt;/p&gt;
 &lt;p&gt;Once the SSH reverse tunnel is set up, you can log in from your FreeBSD VM to your home SSH server. From a remote client, use something like &lt;code&gt;ssh -t -p 5001 azureuser@your-freebsd-vm-dns-name.net ssh -p 5002 your_home_username@localhost:5002&lt;/code&gt; to log into your home SSH server directly. This connects to your FreeBSD VM and creates a terminal session via ssh with your home SSH server. You're in!&lt;/p&gt;
 &lt;h4&gt;Additional tunnels&lt;/h4&gt;
-&lt;p&gt;We now have a way to remotely connect to your home lab via a reverse SSH tunnel. What about remotely connecting to other home lab servers via your remote laptop? This needs another level if indirection with our SSH tunnels. Let's say you have Home Assistant running on an internal home lab address homeassistant.local. We need a way to tunnel from your home SSH server to that address and port. It looks like this:&lt;/p&gt;
+&lt;p&gt;We now have a way to remotely connect to your home lab via a reverse SSH tunnel. What about remotely connecting to other home lab servers via your remote laptop? This needs another level if indirection with our SSH tunnels. Let's say you have Home Assistant running on an internal home lab address homeassistant.local. We need a way to tunnel from the home SSH server to that address and port. It looks like this:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="n"&gt;remote&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;client&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;--&amp;gt;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;FreeBSD&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;VM&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;--&amp;gt;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;home&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;SSH&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;server&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;--&amp;gt;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;homeassistant&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="kr"&gt;local&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
 
-&lt;p&gt;What we need is a local port on the home SSH server that connects to homeassistant.local -- an SSH local tunnel. What I do is run another script on my SSH server to set up the local SSH tunnel. Something like this:&lt;/p&gt;
+&lt;p&gt;What we need is a local port on the home SSH server that connects to homeassistant.local -- an SSH local tunnel. What I do is run another script on the SSH server to set up the local SSH tunnel. Something like this:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;&lt;span class="normal"&gt; 1&lt;/span&gt;
 &lt;span class="normal"&gt; 2&lt;/span&gt;
 &lt;span class="normal"&gt; 3&lt;/span&gt;
@@ -102,8 +102,8 @@ pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
 &lt;span class="k"&gt;done&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/div&gt;
 
-&lt;p&gt;On your home SSH server, this sets up a local port &lt;code&gt;ha_port&lt;/code&gt; that tunnels via ssh to your Home Assistant server.&lt;/p&gt;
-&lt;p&gt;On my FreeBSD VM, I set up an SSH tunnel to connect to the Home Assistant port on your home SSH server:&lt;/p&gt;
+&lt;p&gt;On the home SSH server, this sets up a local port &lt;code&gt;ha_port&lt;/code&gt; that tunnels via ssh to the Home Assistant server.&lt;/p&gt;
+&lt;p&gt;On the FreeBSD VM, I set up an SSH tunnel to connect to the Home Assistant port on the home SSH server:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;&lt;span class="normal"&gt; 1&lt;/span&gt;
 &lt;span class="normal"&gt; 2&lt;/span&gt;
 &lt;span class="normal"&gt; 3&lt;/span&gt;
