@@ -82,7 +82,7 @@ dhclient_program=&quot;/usr/local/sbin/dual-dhclient&quot;
 pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
 </code></pre></div>
 
-<p>Now add your home SSH server's client public SSH key to your FreeBSD's <code>~/.ssh/authorized_keys</code>. This let's the SSH server connect to the FreeBSD VM.</p>
+<p>Now add your home SSH server's client public SSH key to your FreeBSD's <code>~/.ssh/authorized_keys</code>. This let's the SSH client on your server connect to the FreeBSD VM.</p>
 <p>I wrote a script that sets up the reverse SSH tunnel, running as the same user that has the SSH client key configured on the VM:</p>
 <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span class="normal"> 1</span>
 <span class="normal"> 2</span>
@@ -102,13 +102,13 @@ pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
 <span class="normal">16</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="ch">#!/bin/sh</span>
 <span class="c1"># Open local port on FreeBSD VM to connect to this home SSH server.</span>
 <span class="nv">host</span><span class="o">=</span>your-freebsd-vm-dns-name.net
-<span class="nv">home_lab_ssh_port</span><span class="o">=</span><span class="m">5000</span>
+<span class="nv">home_ssh_port</span><span class="o">=</span><span class="m">22</span>
 <span class="nv">vm_ssh_port</span><span class="o">=</span><span class="m">5001</span>
 <span class="nv">vm_local_port</span><span class="o">=</span><span class="m">5002</span>
 
 <span class="k">while</span><span class="w"> </span><span class="o">[</span><span class="w"> </span><span class="nb">true</span><span class="w"> </span><span class="o">]</span>
 <span class="k">do</span>
-<span class="w">    </span>ssh<span class="w"> </span>-NT<span class="w"> </span>-R<span class="w"> </span><span class="nv">$vm_local_port</span>:localhost:<span class="nv">$home_lab_ssh_port</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>ssh<span class="w"> </span>-NT<span class="w"> </span>-R<span class="w"> </span><span class="nv">$vm_local_port</span>:localhost:<span class="nv">$home_ssh_port</span><span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>-o<span class="w"> </span><span class="nv">ExitOnForwardFailure</span><span class="o">=</span>yes<span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>-o<span class="w"> </span><span class="nv">ServerAliveInterval</span><span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>-o<span class="w"> </span><span class="nv">ServerAliveCountMax</span><span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
@@ -117,8 +117,8 @@ pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
 <span class="k">done</span>
 </code></pre></div></td></tr></table></div>
 
-<p><code>host</code> is your DNS record that has your VM's IPv4 address. <code>home_lab_ssh_port</code> is the external SSH IPv6 port to access your home lab. <code>vm_ssh_port</code> is the port we configured earlier in your VM's NSG rules and sshd_config. <code>vm_local_port</code> is the port available at localhost on your VM.</p>
-<p>Once the SSH reverse tunnel is set up, you can log in from your FreeBSD VM to your home SSH server. From a remote client, use something like <code>ssh -t -p 5001 azureuser@your-freebsd-vm-dns-name.net ssh -p 5002 your_home_username@localhost</code> to log into your home SSH server directly. This connects to your FreeBSD VM and creates a terminal session via ssh with your home SSH server. You're in!</p>
+<p><code>host</code> is your DNS record that has your VM's IPv4 address. <code>home_ssh_port</code> is the home server SSH port (default port 22). <code>vm_ssh_port</code> is the port we configured earlier in your VM's NSG rules and sshd_config. <code>vm_local_port</code> is the port available at localhost on your VM.</p>
+<p>Once the SSH reverse tunnel is set up, you can log in from your FreeBSD VM to your home SSH server using port <code>vm_local_port</code>. From a remote client, use something like <code>ssh -t -p 5001 azureuser@your-freebsd-vm-dns-name.net ssh -p 5002 your_home_username@localhost</code> to log into your home SSH server directly. This connects to your FreeBSD VM and creates a terminal session via ssh with your home SSH server. You're in!</p>
 <h4>Additional tunnels</h4>
 <p>We now have a way to remotely connect to your home lab via a reverse SSH tunnel. What about remotely connecting to other home lab servers via your remote laptop? This needs another level if indirection with our SSH tunnels. Let's say you have Home Assistant running on an internal home lab address homeassistant.local. We need a way to tunnel from the home SSH server to that address and port. It looks like this:</p>
 <div class="highlight"><pre><span></span><code><span class="n">remote</span><span class="w"> </span><span class="n">client</span><span class="w"> </span><span class="o">--&gt;</span><span class="w"> </span><span class="n">FreeBSD</span><span class="w"> </span><span class="n">VM</span><span class="w"> </span><span class="o">--&gt;</span><span class="w"> </span><span class="n">home</span><span class="w"> </span><span class="n">SSH</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">--&gt;</span><span class="w"> </span><span class="n">homeassistant</span><span class="p">.</span><span class="kr">local</span><span class="p">.</span>
