@@ -41,10 +41,10 @@
     </h2>
 
                 
-    <p>I need an external VM that can connect to my home lab IPv6-only network as well as serve a small .NET website. For any server, I tend to look first to any of the BSDs, and it turns out there's a good FreeBSD option on Azure that includes ZFS on the root partition (zroot) as well as IPv6. Also, FreeBSD 14.x has good support for .NET 8. </p>
+    <p>I need an external VM that can connect to my home lab IPv6-only network as well as serve a small .NET website. For any server, I tend to look first to any of the BSDs, and it turns out there's a good FreeBSD option on Azure that includes ZFS as the root partition (zroot) as well as IPv6. Also, FreeBSD 14.x has good support for .NET 8. </p>
 <p>Here are some notes how I use an inexpensive Azure VM running FreeBSD for various tasks.</p>
 <h4>Creating an Azure FreeBSD VM with a ZFS root</h4>
-<p>When creating a VM in Azure, you can choose several operating systems in Marketplace including FreeBSD. In my case I chose FreeBSD 14.1-RELEASE (ZFS) on x64. There is also an ARM64 option, but I want to run .NET 8 workloads and this is not yet fully supported yet. I chose a B-series size with 1gb. This is more than enough RAM for my use case.</p>
+<p>When creating a VM in Azure, you can choose several operating systems in Marketplace including FreeBSD. In my case I chose FreeBSD 14.1-RELEASE (ZFS) on x64. There is also an ARM64 option, but I want to run .NET 8 workloads and this is not yet fully supported. I chose a B-series size with 1gb. This is more than enough RAM for my use case.</p>
 <p>Choose to only use an SSH key to access the VM. I also enabled a System Assigned Identity since my VM needs read access to a Keyvault secret and a storage account. Otherwise, it's fine to accept the defaults for remaining properties.</p>
 <p>Once your shiny new FreeBSD VM is up and running and you access via SSH, the first thing I recommend is changing the default SSH server port. Edit <code>/etc/ssh/sshd_config</code> and change <code>Port</code> from 22 to some other higher port number. This minimizes random scans from showing up in <code>/var/log/auth.log</code>. Now reboot your VM and add a custom Network Security Group (<code>Microsoft.Network/networkSecurityGroups</code>) inbound port rule that matches the new port you chose. You can also change the existing SSH rule from Allow to Deny (or simply delete it).</p>
 <h4>Adding a public IPv6 address</h4>
@@ -75,7 +75,7 @@ dhclient_program=&quot;/usr/local/sbin/dual-dhclient&quot;
 <p>I also really appreciate having ZFS on my VM. I can now create ZFS snapshots and do simple backups.</p>
 <h4>Adding an SSH tunnel to connect to the FreeBSD VM</h4>
 <p>My home firewall (OpenBSD) passes in an IPv6 port to a FreeBSD jail that runs a hardened sshd daemon on my IPv6-only home lab VLAN. When I'm away, my laptop usually has IPv6 via my tethered mobile phone and I can connect directly via IPv6. I can also use an IPv6 SSH tunnel for things like connecting remotely to Home Assistant or RDP'ing into my home Windows client. When I can't get IPv6 when away, I need a way to bridge from IPv4 to IPv6.</p>
-<p>What I'll show is how I add an SSH reverse tunnel from an on-prem SSH server to my FreeBSD VM. I created an A record for my domain (e.g. subdomain.idatum.net) that has the public IPv4 for the FreeBSD VM. I don't need to add an AAAA record, since the point of this is an IPv4 to IPv6 bridge. With NAT64/DNS64 on my IPv6-only VLAN, my SSH server gets the IPv6 with the DNS64 prefix I have in my OpenBSD router <code>/var/unbound/etc/unbound.conf</code>:</p>
+<p>What I'll show is how I add an SSH reverse tunnel from an on-prem SSH server to my FreeBSD VM. I created an A record for my domain (e.g. subdomain.idatum.net) that has the public IPv4 for the FreeBSD VM. I don't need to add an AAAA record, since the point of this is an IPv4 to IPv6 bridge. With NAT64/DNS64 on my IPv6-only VLAN, my SSH server uses an IPv6 with the DNS64 prefix I have in my OpenBSD router <code>/var/unbound/etc/unbound.conf</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># DNS64</span>
 <span class="n">module-config:</span> <span class="s">&quot;dns64 iterator&quot;</span>
 <span class="n">dns64-prefix:</span> <span class="mi">64</span>:<span class="n">ff9b::</span>/<span class="mi">96</span>
@@ -87,7 +87,7 @@ pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
 </code></pre></div>
 
 <p>I add my home SSH server's client public SSH key to my FreeBSD VM's <code>~/.ssh/authorized_keys</code>. This let's the SSH server connect using SSH key auth.</p>
-<p>I wrote a script that sets up the reverse SSH tunnel, running as the same user that has the SSH client key configured on the VM:</p>
+<p>I wrote a script that sets up the reverse SSH tunnel, running as the same user that has the SSH client key configured on the VM, something like this:</p>
 <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span class="normal"> 1</span>
 <span class="normal"> 2</span>
 <span class="normal"> 3</span>
@@ -125,7 +125,7 @@ pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
 <p>Once the SSH reverse tunnel is set up, I can log in from my FreeBSD VM to my home SSH server. From a remote client, I use something like <code>ssh -t -p 5001 azureuser@my-freebsd-vm-dns-name.net ssh -p 5002 my_home_username@localhost</code> to log into the home SSH server directly. This connects to my FreeBSD VM and creates a terminal session via ssh with my home SSH server. I'm in via IPv4!</p>
 <h4>Conclusion</h4>
 <p>I'm happy with my Azure FreeBSD VM. When I'm remote and don't have IPv6, I can tunnel through my inexpensive VM and get access to my IPv6-only home lab. And I can also host my simple website I use for checking on my weather station. ZFS gives me the flexibility of dataset snapshots.</p>
-<p>There is only trust from my home SSH server to my FreeBSD VM. The FreeBSD VM is not trusted by my home server -- only by creating the SSH reverse tunnel can the VM access my home lab. My SSH server running in a FreeBSD jail has stict configuration including SSH key only authorization. Also, I allow list my VM's public IPV6 address in pf.conf for HTTPS connections and block all others -- only my external website can connect for content.</p>
+<p>There is only trust from my home SSH server to my FreeBSD VM. The FreeBSD VM is not trusted by my home server -- only by creating the SSH reverse tunnel can the VM access my home lab SSH server. My SSH server running in a FreeBSD jail has stict configuration including SSH key only authorization. Also, I allow list my VM's public IPV6 address in pf.conf for HTTPS connections and block all others -- only my external website can connect for content.</p>
 <p>I'll find other uses for my FreeBSD VM running on Azure. Perhaps I'll start experimenting with sending ZFS snapshots from my home ZFS server for an additional backup.</p>
 <p>Yes, I could have used a Linux VM on another cloud provider. I chose Azure and it delivers a solid FreeBSD VM with that familiar BSD experience.</p>
 <p>Cheers to the BSDs!</p>
