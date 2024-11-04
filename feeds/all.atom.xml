@@ -13,8 +13,8 @@
 &lt;p&gt;I'm happy with the hardware and everything I need in a laptop works for use around the house and the occasional trip outside (easily tethers to my mobile phone Wi-Fi).&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;Suspend works when closing the lid.&lt;/li&gt;
-&lt;li&gt;The Wi-Fi iwm driver supports 5ghz and is stable; Ethernet em driver works well.&lt;/li&gt;
-&lt;li&gt;The touchpad is good and tap and two finger scroll works; trackpoint works too.&lt;/li&gt;
+&lt;li&gt;The Wi-Fi &lt;code&gt;iwm&lt;/code&gt; driver supports 5ghz and is stable; Ethernet &lt;code&gt;em&lt;/code&gt; driver works well.&lt;/li&gt;
+&lt;li&gt;The touchpad is good and tap and two finger scroll work; trackpoint works too.&lt;/li&gt;
 &lt;li&gt;The keyboard is the usual good quality Lenovo and volume and brightness keys work.&lt;/li&gt;
 &lt;li&gt;Good USB support.&lt;/li&gt;
 &lt;li&gt;SD card slot works.&lt;/li&gt;
