@@ -7,7 +7,7 @@
 &lt;p&gt;The laptop came with Windows 10 installed and a 1 year warranty. I booted Windows 10 and made sure all the hardware checked out -- looked good. Cool, now time to get Windows off and OpenBSD installed.&lt;/p&gt;
 &lt;p&gt;I followed the official &lt;a href="https://www.openbsd.org/faq/faq4.html"&gt;OpenBSD installation Guide&lt;/a&gt;. As with BSD documentation generally, it is thorough and well maintained. I downloaded the amd64 &lt;code&gt;install76.img&lt;/code&gt; image and copied to a USB memory stick.&lt;/p&gt;
 &lt;p&gt;First, you need to boot to BIOS and make sure Secure Boot is off. OpenBSD supports UEFI so I kept the remaining default settings, saved the changes, and restarted. Pressing ENTER on startup allowed me to select the inserted USB stick from the boot menu, and the OpenBSD installation began.&lt;/p&gt;
-&lt;p&gt;I chose &lt;a href="https://www.openbsd.org/faq/faq14.html#softraidFDE"&gt;full disk encryption&lt;/a&gt; on the SDD drive. Since it's a laptop I use for my home lab, there are a several SSH keys and secrets I do not want lost along with a stolen laptop. I went with a passphrase, but you can also use a keydisk.&lt;/p&gt;
+&lt;p&gt;I chose &lt;a href="https://www.openbsd.org/faq/faq14.html#softraidFDE"&gt;full disk encryption&lt;/a&gt; on the SDD drive. Since it's a laptop I use for my home lab, there are several SSH keys and secrets I do not want lost along with a stolen laptop. I went with a passphrase, but you can also use a keydisk.&lt;/p&gt;
 &lt;p&gt;The OpenBSD installation is straight forward (even the disk encryption part). I rebooted and was pleased to see X prompt me to log in. Everything looked good on first boot.&lt;/p&gt;
 &lt;h4&gt;Hardware&lt;/h4&gt;
 &lt;p&gt;I'm happy with the hardware and everything I need in a laptop works for use around the house and the occasional trip outside (easily tethers to my mobile phone Wi-Fi).&lt;/p&gt;
@@ -31,7 +31,7 @@
 &lt;span class="nx"&gt;mouse&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;tp&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;edges&lt;/span&gt;&lt;span class="p"&gt;=&lt;/span&gt;&lt;span class="m m-Double"&gt;0.0&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="m m-Double"&gt;5.0&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="m m-Double"&gt;0.0&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="m m-Double"&gt;5.0&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
 
-&lt;p&gt;This reverses the default scrolling to what I'm used to (aka "natural scrolling"). I enabled single tap, but disabled two and three finger taps which I don't use and instead use the touchpad buttons.&lt;/p&gt;
+&lt;p&gt;This reverses the default scrolling to what I'm used to (aka "natural" scrolling). I enabled single tap, but disabled two and three finger taps which I don't use and instead use the touchpad buttons.&lt;/p&gt;
 &lt;p&gt;I didn't change anything to the X configuration yet and I'm still trying different window managers (default is fine too). Generally, X support is good, with Firefox and Thunderbird all running well.&lt;/p&gt;
 &lt;p&gt;The video camera works and to enable you need to set &lt;code&gt;kern.video.record=1&lt;/code&gt;. I placed this in &lt;code&gt;/etc/sysctl.conf&lt;/code&gt;.&lt;/p&gt;
 &lt;p&gt;The battery life is looking reasonable and I'm still tweaking power settings. I added &lt;code&gt;amd_flags=-A&lt;/code&gt; to &lt;code&gt;/etc/rc.conf.local&lt;/code&gt;.&lt;/p&gt;
