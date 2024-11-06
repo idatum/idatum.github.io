@@ -63,7 +63,7 @@
 <li>HDMI output works on my external monitor.</li>
 <li>The Intel video driver is solid and streaming video on Firefox is suprisingly good.</li>
 </ul>
-<p>After a few days of use I was convinced I was going to like this laptop, so I decided to upgrade the RAM from 8Gb to 24Gb. The existing 8Gb is soldered to the board but there is a free RAM slot. I ordered a $30 Crucial RAM 16GB DDR4 3200MHz CL22 CT16G4SFRA32A SoDIMM. Installation requires unscrewing the back panel mount screws and carefully using a pry tool. There are videos etc online, pretty standard for a Lenovo RAM upgrade. With the increased RAM, [0] dmesg is below.</p>
+<p>After a few days of use I was convinced I was going to like this laptop, so I decided to upgrade the RAM from 8Gb to 24Gb. The existing 8Gb is soldered to the board but there is a free RAM slot. I ordered a $30 Crucial RAM 16GB DDR4 3200MHz CL22 CT16G4SFRA32A SoDIMM. Installation requires unscrewing the back panel mount screws and carefully using a pry tool. There are videos etc online, pretty standard for a Lenovo RAM upgrade. With the increased RAM, [0] dmesg and [1] hw.sensors below.</p>
 <h4>Configuration notes</h4>
 <p>There are a few configuration changes I made. For the touchpad, I added settings in <code>/etc/wsconsctl.conf</code> to make adjustments to two finger scrolling and to enable tap:</p>
 <div class="highlight"><pre><span></span><code><span class="nx">mouse</span><span class="p">.</span><span class="k">type</span><span class="p">=</span><span class="nx">synaptics</span>
@@ -309,6 +309,35 @@
 <span class="n">wsdisplay0</span><span class="w"> </span><span class="n">at</span><span class="w"> </span><span class="n">inteldrm0</span><span class="w"> </span><span class="n">mux</span><span class="w"> </span><span class="mi">1</span><span class="o">:</span><span class="w"> </span><span class="n">console</span><span class="w"> </span><span class="p">(</span><span class="n">std</span><span class="p">,</span><span class="w"> </span><span class="n">vt100</span><span class="w"> </span><span class="n">emulation</span><span class="p">),</span><span class="w"> </span><span class="n">using</span><span class="w"> </span><span class="n">wskbd0</span>
 <span class="nl">wsdisplay0</span><span class="p">:</span><span class="w"> </span><span class="n">screen</span><span class="w"> </span><span class="mi">1-5</span><span class="w"> </span><span class="n">added</span><span class="w"> </span><span class="p">(</span><span class="n">std</span><span class="p">,</span><span class="w"> </span><span class="n">vt100</span><span class="w"> </span><span class="n">emulation</span><span class="p">)</span>
 <span class="nl">iwm0</span><span class="p">:</span><span class="w"> </span><span class="n">hw</span><span class="w"> </span><span class="n">rev</span><span class="w"> </span><span class="mh">0x310</span><span class="p">,</span><span class="w"> </span><span class="n">fw</span><span class="w"> </span><span class="n">ver</span><span class="w"> </span><span class="mf">46.7e3</span><span class="n">e4b69</span><span class="mf">.0</span><span class="p">,</span><span class="w"> </span><span class="n">address</span><span class="w"> </span><span class="mi">5</span><span class="n">c</span><span class="o">:</span><span class="mi">80</span><span class="o">:</span><span class="n">b6</span><span class="o">:</span><span class="n">af</span><span class="o">:</span><span class="mi">08</span><span class="o">:</span><span class="n">f2</span>
+</code></pre></div>
+
+<p>[1] hw.sensors</p>
+<div class="highlight"><pre><span></span><code>hw.sensors.cpu0.temp0=46.00 degC
+hw.sensors.cpu0.frequency0=4100000000.00 Hz
+hw.sensors.cpu1.frequency0=4400000000.00 Hz
+hw.sensors.cpu2.frequency0=4400000000.00 Hz
+hw.sensors.cpu3.frequency0=4400000000.00 Hz
+hw.sensors.acpithinkpad0.temp0=49.00 degC
+hw.sensors.acpithinkpad0.fan0=0 RPM
+hw.sensors.acpithinkpad0.indicator0=Off (port replicator), UNKNOWN
+hw.sensors.acpiac0.indicator0=On (power supply)
+hw.sensors.acpibat0.volt0=11.52 VDC (voltage)
+hw.sensors.acpibat0.volt1=12.85 VDC (current voltage)
+hw.sensors.acpibat0.power0=0.00 W (rate)
+hw.sensors.acpibat0.watthour0=41.91 Wh (last full capacity)
+hw.sensors.acpibat0.watthour1=2.10 Wh (warning capacity)
+hw.sensors.acpibat0.watthour2=0.20 Wh (low capacity)
+hw.sensors.acpibat0.watthour3=41.91 Wh (remaining capacity), OK
+hw.sensors.acpibat0.watthour4=50.45 Wh (design capacity)
+hw.sensors.acpibat0.raw0=0 (battery full), OK
+hw.sensors.acpibat0.raw1=434 (discharge cycles)
+hw.sensors.acpibtn1.indicator0=On (lid open)
+hw.sensors.acpitz0.temp0=49.00 degC (zone temperature)
+hw.sensors.pchtemp0.temp0=50.00 degC
+hw.sensors.nvme0.temp0=39.00 degC, OK
+hw.sensors.nvme0.percent0=13.00% (endurance used), OK
+hw.sensors.nvme0.percent1=100.00% (available spare), OK
+hw.sensors.softraid0.drive0=online (sd1), OK
 </code></pre></div>
     <div class="clear"></div>
 
