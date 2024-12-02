@@ -32,7 +32,13 @@
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
 
 &lt;p&gt;This reverses the default scrolling to what I'm used to (aka "natural" scrolling). I enabled single tap, but disabled two and three finger taps which I don't use and instead use the touchpad buttons.&lt;/p&gt;
-&lt;p&gt;I didn't change anything to the X configuration yet and I'm still trying different window managers (default is fine too). Generally, X support is good, with Firefox and Thunderbird all running well.&lt;/p&gt;
+&lt;p&gt;I didn't change anything to the X configuration other than enabling scrolling using the middle mouse button and the trackpoint. In ~/.xsession:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;xinput set-prop &amp;quot;/dev/wsmouse&amp;quot; &amp;quot;WS Pointer Wheel Emulation&amp;quot; 1
+xinput set-prop &amp;quot;/dev/wsmouse&amp;quot; &amp;quot;WS Pointer Wheel Emulation Button&amp;quot; 2
+xinput set-prop &amp;quot;/dev/wsmouse&amp;quot; &amp;quot;WS Pointer Wheel Emulation Axes&amp;quot; 6 7 4 5
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;I'm still trying different window managers (default is fine too). Generally, X support is good, with Firefox and Thunderbird all running well.&lt;/p&gt;
 &lt;p&gt;The video camera works and to enable you need to set &lt;code&gt;kern.video.record=1&lt;/code&gt;. I placed this in &lt;code&gt;/etc/sysctl.conf&lt;/code&gt;.&lt;/p&gt;
 &lt;p&gt;The battery life is looking reasonable and I'm still tweaking power settings. I added &lt;code&gt;amd_flags=-A&lt;/code&gt; to &lt;code&gt;/etc/rc.conf.local&lt;/code&gt;.&lt;/p&gt;
 &lt;h4&gt;Summary&lt;/h4&gt;

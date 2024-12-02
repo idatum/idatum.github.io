@@ -75,7 +75,13 @@
 </code></pre></div>
 
 <p>This reverses the default scrolling to what I'm used to (aka "natural" scrolling). I enabled single tap, but disabled two and three finger taps which I don't use and instead use the touchpad buttons.</p>
-<p>I didn't change anything to the X configuration yet and I'm still trying different window managers (default is fine too). Generally, X support is good, with Firefox and Thunderbird all running well.</p>
+<p>I didn't change anything to the X configuration other than enabling scrolling using the middle mouse button and the trackpoint. In ~/.xsession:</p>
+<div class="highlight"><pre><span></span><code>xinput set-prop &quot;/dev/wsmouse&quot; &quot;WS Pointer Wheel Emulation&quot; 1
+xinput set-prop &quot;/dev/wsmouse&quot; &quot;WS Pointer Wheel Emulation Button&quot; 2
+xinput set-prop &quot;/dev/wsmouse&quot; &quot;WS Pointer Wheel Emulation Axes&quot; 6 7 4 5
+</code></pre></div>
+
+<p>I'm still trying different window managers (default is fine too). Generally, X support is good, with Firefox and Thunderbird all running well.</p>
 <p>The video camera works and to enable you need to set <code>kern.video.record=1</code>. I placed this in <code>/etc/sysctl.conf</code>.</p>
 <p>The battery life is looking reasonable and I'm still tweaking power settings. I added <code>amd_flags=-A</code> to <code>/etc/rc.conf.local</code>.</p>
 <h4>Summary</h4>
