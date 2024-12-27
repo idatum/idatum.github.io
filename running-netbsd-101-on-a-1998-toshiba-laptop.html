@@ -44,11 +44,11 @@
                 
     <h4>Moving from NetBSD 5.1 to NetBSD 10.1</h4>
 <p>Here are my notes on running NetBSD 10.1 on my first personal laptop that I still keep, a 1998 i586 Toshiba Satellite Pro with 81Mb of RAM and a 1Gb IBM 2.5" IDE HD. In summary, the latest NetBSD runs well on this old hardware using an IDE to CF adapter and several changes to the i386 GENERIC kernel.</p>
-<p>During the holiday break time of year I take out my old hardware and make sure it passes a threshold: it can boot the latest NetBSD. Last year (2003) at this time I didn't have an IDE adapter to either upgrade the old laptop's original HD from NetBSD 5.1 to 10_RC (at the time) or replace the HD with solid state storage (e.g. Compact Flash drive). I also didn't take the time to aggressivly trim the i386 GENERIC kernel to save available RAM (working with little to start with) and so there was a lot of swap space use with 10_RC GENERIC. My <a href="/upgrading-from-netbsd-51-to-10_rc1.html">2003 notes are here</a>.</p>
+<p>During the holiday break time of year I take out my old hardware and make sure it passes a threshold: it can boot the latest NetBSD. Last year (2003) at this time I didn't have an IDE adapter to either externally upgrade the old laptop's original HD from NetBSD 5.1 to 10_RC (at the time) or replace the HD with solid state storage (e.g. Compact Flash drive). I also didn't take the time to aggressivly trim the i386 GENERIC kernel to save available RAM (working with little to start with). The result was a lot of swap space use with 10_RC GENERIC and root on a USB memory stick. My <a href="/upgrading-from-netbsd-51-to-10_rc1.html">2003 notes are here</a>.</p>
 <p>This year I finally got motived and bought a CF to IDE HD adapter:
 <img alt="Compact Flash Merory Card to 2.5&quot; 44Pin IDE Hard Disk Drive HDD SSD Adapter" src="./images/cf2ide.png"></p>
 <p>I still had the same problem though: both the FD and CDROM drives long since died, and the BIOS doesn't support PXE, so there was no way to boot an install image on separate storage. I needed to create a custom boot image with NetBSD 10.1.</p>
-<p>I'll get into how to create a custom image from a build, and what hardware works and doesn't work.</p>
+<p>I'll get into how I created a custom image from a build, and what hardware works and doesn't work.</p>
 <h4>Building an i386 NetBSD-10.1 release.</h4>
 <p>This is the most straight forward part. I have an i7-4770, 16gb, NetBSD build machine that I use <code>build.sh</code> for cross compiling. For an i386 kernel for my old laptop, I needed to strip out a lot of unused drivers and verbose messages.</p>
 <p>First, I used CVS to fetch 10.1-RELEASE:</p>
