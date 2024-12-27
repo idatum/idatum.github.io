@@ -7,7 +7,7 @@
 &lt;p&gt;I still had the same problem though: both the FD and CDROM drives long since died, and the BIOS doesn't support PXE, so there was no way to boot an install image on separate storage. I needed to create a custom boot image with NetBSD 10.1.&lt;/p&gt;
 &lt;p&gt;I'll get into how I created a custom image from a build, and what hardware works and doesn't work.&lt;/p&gt;
 &lt;h4&gt;Building an i386 NetBSD-10.1 release.&lt;/h4&gt;
-&lt;p&gt;This is the most straight forward part. I have an i7-4770, 16gb, NetBSD build machine that I use &lt;code&gt;build.sh&lt;/code&gt; for cross compiling. For an i386 kernel for my old laptop, I needed to strip out a lot of unused drivers and verbose messages.&lt;/p&gt;
+&lt;p&gt;This is the most straight forward part. I have an i7-4770, 16gb, NetBSD build machine that I use &lt;code&gt;build.sh&lt;/code&gt; for cross compiling. For an i386 kernel for my old laptop, I needed to strip out a lot of unused drivers and verbose messages. &lt;a href="/text/TOSHSATPRO.txt"&gt;Here is the resulting i386 kernel config.&lt;/a&gt;&lt;/p&gt;
 &lt;p&gt;First, I used CVS to fetch 10.1-RELEASE:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;cvs checkout -r netbsd-10-1-RELEASE -P src
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
