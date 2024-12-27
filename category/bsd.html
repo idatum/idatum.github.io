@@ -50,19 +50,19 @@
 <p>I still had the same problem though: both the FD and CDROM drives long since died, and the BIOS doesn't support PXE, so there was no way to boot an install image on separate storage. I needed to create a custom boot image with NetBSD 10.1.</p>
 <p>I'll get into how I created a custom image from a build, and what hardware works and doesn't work.</p>
 <h4>Building an i386 NetBSD-10.1 release.</h4>
-<p>This is the most straight forward part. I have an i7-4770, 16gb, NetBSD build machine that I use <code>build.sh</code> for cross compiling. For an i386 kernel for my old laptop, I needed to strip out a lot of unused drivers and verbose messages. <a href="/text/TOSHSATPRO.txt">Here is the resulting i386 kernel config.</a></p>
+<p>This is the most straight forward part. I have an i7-4770, 16gb, amd64 NetBSD build machine that I use <code>build.sh</code> for cross compiling. For an i386 kernel for my old laptop, I needed to strip out a lot of unused drivers and verbose messages. <a href="/text/TOSHSATPRO.txt">Here is the resulting i386 kernel config.</a></p>
 <p>First, I used CVS to fetch 10.1-RELEASE:</p>
 <div class="highlight"><pre><span></span><code>cvs checkout -r netbsd-10-1-RELEASE -P src
 </code></pre></div>
 
-<p>I then copied src/sys/arch/i386/conf/GENERIC kernel config to .../TOSHSATPRO. It is this config file, src/sys/arch/i386/conf/TOSHSATPRO, that has my kernel changes.</p>
+<p>I then copied src/sys/arch/i386/conf/GENERIC kernel config to src/sys/arch/i386/conf/TOSHSATPRO. This is the file that has my kernel changes.</p>
 <p>In the src directory and with the new kernel config, I built the i386 toolchain, the custom kernel, and a release:</p>
 <div class="highlight"><pre><span></span><code><span class="o">./</span><span class="n">build</span><span class="o">.</span><span class="n">sh</span><span class="w"> </span><span class="o">-</span><span class="n">U</span><span class="w"> </span><span class="o">-</span><span class="n">u</span><span class="w"> </span><span class="o">-</span><span class="n">O</span><span class="w"> </span><span class="o">../</span><span class="n">obj</span><span class="w"> </span><span class="o">-</span><span class="n">T</span><span class="w"> </span><span class="o">../</span><span class="n">tools</span><span class="w"> </span><span class="o">-</span><span class="n">j8</span><span class="w"> </span><span class="o">-</span><span class="n">m</span><span class="w"> </span><span class="n">i386</span><span class="w"> </span><span class="o">-</span><span class="n">a</span><span class="w"> </span><span class="n">i386</span><span class="w"> </span><span class="n">tools</span>
 <span class="o">./</span><span class="n">build</span><span class="o">.</span><span class="n">sh</span><span class="w"> </span><span class="o">-</span><span class="n">U</span><span class="w"> </span><span class="o">-</span><span class="n">u</span><span class="w"> </span><span class="o">-</span><span class="n">j8</span><span class="w"> </span><span class="o">-</span><span class="n">O</span><span class="w"> </span><span class="o">../</span><span class="n">obj</span><span class="w"> </span><span class="o">-</span><span class="n">T</span><span class="w"> </span><span class="o">../</span><span class="n">tools</span><span class="w"> </span><span class="o">-</span><span class="n">m</span><span class="w"> </span><span class="n">i386</span><span class="w"> </span><span class="o">-</span><span class="n">a</span><span class="w"> </span><span class="n">i386</span><span class="w"> </span><span class="n">kernel</span><span class="o">=</span><span class="n">TOSHSATPRO</span>
 <span class="o">./</span><span class="n">build</span><span class="o">.</span><span class="n">sh</span><span class="w"> </span><span class="o">-</span><span class="n">U</span><span class="w"> </span><span class="o">-</span><span class="n">u</span><span class="w"> </span><span class="o">-</span><span class="n">j8</span><span class="w"> </span><span class="o">-</span><span class="n">O</span><span class="w"> </span><span class="o">../</span><span class="n">obj</span><span class="w"> </span><span class="o">-</span><span class="n">T</span><span class="w"> </span><span class="o">../</span><span class="n">tools</span><span class="w"> </span><span class="o">-</span><span class="n">m</span><span class="w"> </span><span class="n">i386</span><span class="w"> </span><span class="o">-</span><span class="n">a</span><span class="w"> </span><span class="n">i386</span><span class="w"> </span><span class="n">kernel</span><span class="o">=</span><span class="n">TOSHSATPRO</span><span class="w"> </span><span class="n">release</span>
 </code></pre></div>
 
-<p>I didn't bother fetching and building X. I just used <code>sysinst</code> to install X later. The goal here is to create a minimal system on a storage device that can boot the kernel and root.</p>
+<p>I didn't bother fetching and building X. Instead, I used <code>sysinst</code> to install X later. The goal here is to create a minimal system on a storage device that can boot the kernel and root.</p>
 <h4>Creating a custom boot image on a CF drive.</h4>
 <p>I used <code>fdisk</code> on my build machine with a USB CF adatper to create a NetBSD partition on a 4gb CF card (/dev/sd0) and then <code>disklabel</code> to create a 2900Mb 'a' 4.2BSD and a 99Mb 'b' swap. Then <code>newfs</code> to format 'a'.</p>
 <p>To boot from the CF, using notes from <a href="https://man.netbsd.org/NetBSD-10.1/installboot.8">installboot(8)</a>, I did the following:</p>
@@ -72,9 +72,9 @@
 <li>mount /dev/sd0a /mnt</li>
 <li>cp boot /mnt</li>
 <li>mkdir /mnt/kern /mnt/proc</li>
-<li>tar zxvfp base.tgz, ...</li>
+<li>tar zxvfp base.tgz ...</li>
 </ul>
-<p>All of the files are from my custom i386 release build. Specifically, mbr, bootxx_ffsv1, and boot are under obj/destdir.i386/usr/mdec. The final step is expanding the sets on to / on the CF. For a minimal system, you need base.tgz, kern-GENERIC.tgz, modules.tgz, and etc.tgz. Since I had enough space, I also used comp.tgz, man.tgz, text.tgz, and misc.tgz.</p>
+<p>All of the files are from my custom i386 release build. Specifically, mbr, bootxx_ffsv1, and boot are under obj/destdir.i386/usr/mdec. That final step is expanding the sets to /mnt (/ on the CF). For a minimal system, you need base.tgz, kern-GENERIC.tgz, modules.tgz, and etc.tgz. Since I had enough space, I also used comp.tgz, man.tgz, text.tgz, and misc.tgz.</p>
 <p>I then renamed /mnt/netbsd to /mnt/netbsd-GENERIC and copied my custom kernel, obj/sys/arch/i386/compile/TOSHSATPRO/netbsd, to /mnt. </p>
 <p>I then edited /mnt/etc/rc.conf with the following:</p>
 <ul>
