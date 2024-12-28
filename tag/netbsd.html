@@ -75,22 +75,22 @@
 <p>All of the files are from my custom i386 release build. Specifically, mbr, bootxx_ffsv1, and boot are under obj/destdir.i386/usr/mdec. That final step is expanding the sets to /mnt (/ on the CF). For a minimal system, you need base.tgz, kern-GENERIC.tgz, modules.tgz, and etc.tgz. Since I had enough space, I also used comp.tgz, man.tgz, text.tgz, and misc.tgz.</p>
 <p>I then renamed /mnt/netbsd to /mnt/netbsd-GENERIC and copied my custom kernel, obj/sys/arch/i386/compile/TOSHSATPRO/netbsd, to /mnt. </p>
 <p>I then edited /mnt/etc/rc.conf with the following:</p>
-<ul>
-<li>rt_configured=YES</li>
-<li>hostname=toshsatpro</li>
-<li>wscons=YES</li>
-<li>dhcpcd=YES</li>
-<li>ntpd=YES</li>
-<li>ntpd_flags="-g"</li>
-<li>sshd=NO</li>
-<li>makemandb=NO</li>
-</ul>
-<p>For the last two, I didn't want to start and wait for sshd to create keys. I'll set that to YES after running <code>sysinst</code> and manually creating entropy. Since I installed man.tgz, I didn't want my feeble i586 133mhz laptop to toil away on first boot indexing man pages, so I set makemandb=NO.</p>
+<div class="highlight"><pre><span></span><code>rc_configured=YES
+hostname=toshsatpro
+wscons=YES
+dhcpcd=YES
+ntpd=YES
+ntpd_flags=&quot;-g&quot;
+sshd=NO
+makemandb=NO
+</code></pre></div>
+
+<p>For the last two, I didn't want to start and wait for sshd to create keys. I set that to YES after running <code>sysinst</code> and manually creating entropy. Since I installed man.tgz, I didn't want my feeble i586 133mhz laptop to toil away on first boot indexing man pages, so I set makemandb=NO.</p>
 <p>I attached a 3Com PCMCIA NIC that uses the <code>ep</code> driver. I have an IPv6-only network, so I added the following lines to /mnt/etc/dhcpcd.conf:</p>
-<ul>
-<li>interface ep0</li>
-<li>ipv6only</li>
-</ul>
+<div class="highlight"><pre><span></span><code>interface ep0
+ipv6only
+</code></pre></div>
+
 <p>Finally, I created a minimal /mnt/etc/fstab:</p>
 <div class="highlight"><pre><span></span><code>/dev/wd0a / ffs rw 1 1
 /dev/wd0b none swap sw 0 0
@@ -108,7 +108,7 @@ procfs /proc procfs rw
 <h4>What works</h4>
 <p>I have enough hardware working to enjoy using my old (and first) laptop from the '90s running a modern O/S. Compared to some ARM64 devices I have, I like the real RS-232 port. It even has an LPT port.</p>
 <p>I was able to add a USB hub to the single USB 1.0 port and got an Edimax (urtwn) WiFi adapter connected to my 2.4Ghz IoT network. Eventually I'll find my old Cisco Air PCMCIA WiFi card and give that a try. I was also able to connect various USB storage devices. I'll add a USB Bluetooth adapter to the list to try.</p>
-<p>The internal NiMh batteries are long dead so I depend on NTP to set the clock. Shockingly, the original 26 year old Li-ion main battery can still hold a charge at least long enough to move the laptop across the room.</p>
+<p>The internal NiMh BIOS batteries are long dead so I depend on NTP to set the clock. Shockingly, the original 26 year old Li-ion main battery can still hold a charge at least long enough to move the laptop across the room.</p>
 <h4>What doesn't work</h4>
 <p>I'm not able to use more than one PCMCIA device without issues. The laptop has 2 sockets. I first noticed when using a PCMCIA CF adapter with my 3Com NIC up. I get the following error when accessing the CF card adapter (/dev/wd1):</p>
 <div class="highlight"><pre><span></span><code><span class="p">[</span><span class="w">   </span><span class="m m-Double">262.563457</span><span class="p">]</span><span class="w"> </span><span class="nx">pcmcia1</span><span class="p">:</span><span class="w"> </span><span class="nx">card</span><span class="w"> </span><span class="nx">irq</span><span class="w"> </span><span class="mi">9</span>

@@ -34,22 +34,22 @@
 &lt;p&gt;All of the files are from my custom i386 release build. Specifically, mbr, bootxx_ffsv1, and boot are under obj/destdir.i386/usr/mdec. That final step is expanding the sets to /mnt (/ on the CF). For a minimal system, you need base.tgz, kern-GENERIC.tgz, modules.tgz, and etc.tgz. Since I had enough space, I also used comp.tgz, man.tgz, text.tgz, and misc.tgz.&lt;/p&gt;
 &lt;p&gt;I then renamed /mnt/netbsd to /mnt/netbsd-GENERIC and copied my custom kernel, obj/sys/arch/i386/compile/TOSHSATPRO/netbsd, to /mnt. &lt;/p&gt;
 &lt;p&gt;I then edited /mnt/etc/rc.conf with the following:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;rt_configured=YES&lt;/li&gt;
-&lt;li&gt;hostname=toshsatpro&lt;/li&gt;
-&lt;li&gt;wscons=YES&lt;/li&gt;
-&lt;li&gt;dhcpcd=YES&lt;/li&gt;
-&lt;li&gt;ntpd=YES&lt;/li&gt;
-&lt;li&gt;ntpd_flags="-g"&lt;/li&gt;
-&lt;li&gt;sshd=NO&lt;/li&gt;
-&lt;li&gt;makemandb=NO&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;For the last two, I didn't want to start and wait for sshd to create keys. I'll set that to YES after running &lt;code&gt;sysinst&lt;/code&gt; and manually creating entropy. Since I installed man.tgz, I didn't want my feeble i586 133mhz laptop to toil away on first boot indexing man pages, so I set makemandb=NO.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;rc_configured=YES
+hostname=toshsatpro
+wscons=YES
+dhcpcd=YES
+ntpd=YES
+ntpd_flags=&amp;quot;-g&amp;quot;
+sshd=NO
+makemandb=NO
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;For the last two, I didn't want to start and wait for sshd to create keys. I set that to YES after running &lt;code&gt;sysinst&lt;/code&gt; and manually creating entropy. Since I installed man.tgz, I didn't want my feeble i586 133mhz laptop to toil away on first boot indexing man pages, so I set makemandb=NO.&lt;/p&gt;
 &lt;p&gt;I attached a 3Com PCMCIA NIC that uses the &lt;code&gt;ep&lt;/code&gt; driver. I have an IPv6-only network, so I added the following lines to /mnt/etc/dhcpcd.conf:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;interface ep0&lt;/li&gt;
-&lt;li&gt;ipv6only&lt;/li&gt;
-&lt;/ul&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;interface ep0
+ipv6only
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
 &lt;p&gt;Finally, I created a minimal /mnt/etc/fstab:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;/dev/wd0a / ffs rw 1 1
 /dev/wd0b none swap sw 0 0
@@ -67,7 +67,7 @@ procfs /proc procfs rw
 &lt;h4&gt;What works&lt;/h4&gt;
 &lt;p&gt;I have enough hardware working to enjoy using my old (and first) laptop from the '90s running a modern O/S. Compared to some ARM64 devices I have, I like the real RS-232 port. It even has an LPT port.&lt;/p&gt;
 &lt;p&gt;I was able to add a USB hub to the single USB 1.0 port and got an Edimax (urtwn) WiFi adapter connected to my 2.4Ghz IoT network. Eventually I'll find my old Cisco Air PCMCIA WiFi card and give that a try. I was also able to connect various USB storage devices. I'll add a USB Bluetooth adapter to the list to try.&lt;/p&gt;
-&lt;p&gt;The internal NiMh batteries are long dead so I depend on NTP to set the clock. Shockingly, the original 26 year old Li-ion main battery can still hold a charge at least long enough to move the laptop across the room.&lt;/p&gt;
+&lt;p&gt;The internal NiMh BIOS batteries are long dead so I depend on NTP to set the clock. Shockingly, the original 26 year old Li-ion main battery can still hold a charge at least long enough to move the laptop across the room.&lt;/p&gt;
 &lt;h4&gt;What doesn't work&lt;/h4&gt;
 &lt;p&gt;I'm not able to use more than one PCMCIA device without issues. The laptop has 2 sockets. I first noticed when using a PCMCIA CF adapter with my 3Com NIC up. I get the following error when accessing the CF card adapter (/dev/wd1):&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="w"&gt;   &lt;/span&gt;&lt;span class="m m-Double"&gt;262.563457&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;pcmcia1&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;card&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nx"&gt;irq&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="mi"&gt;9&lt;/span&gt;
