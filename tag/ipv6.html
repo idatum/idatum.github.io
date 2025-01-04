@@ -36,97 +36,19 @@
 
 <article class="post">
     <h2 class="title">
-        <a href="../using-freebsd-zfs-and-ipv6-on-azure.html" rel="bookmark" title="Permanent Link to &quot;Using FreeBSD, ZFS, and IPv6 on Azure&quot;">Using FreeBSD, ZFS, and IPv6 on Azure</a>
+        <a href="../self-hosting-ente-photos-with-minio-on-freebsd.html" rel="bookmark" title="Permanent Link to &quot;Self hosting Ente Photos with MinIO on FreeBSD&quot;">Self hosting Ente Photos with MinIO on FreeBSD</a>
     </h2>
 
                 
-    <p>I need an external VM that can connect to my home lab IPv6-only network as well as serve a small .NET website. For any server, I tend to look first to any of the BSDs, and it turns out there's a good FreeBSD option on Azure that includes ZFS as the root partition (zroot) as well as IPv6. Also, FreeBSD 14.x has good support for .NET 8. </p>
-<p>Here are some notes how I use an inexpensive Azure VM running FreeBSD for various tasks.</p>
-<h4>Creating an Azure FreeBSD VM with a ZFS root</h4>
-<p>When creating a VM in Azure, you can choose several operating systems in Marketplace including FreeBSD. In my case I chose FreeBSD 14.1-RELEASE (ZFS) on x64. There is also an ARM64 option, but I want to run .NET 8 workloads and this is not yet fully supported on that platform. I chose a B-series size with 1gb. This is more than enough RAM for my use case.</p>
-<p>Choose to only use an SSH key to access the VM. I also enabled a System Assigned Identity since my VM needs read access to a Keyvault secret and a storage account. Otherwise, it's fine to accept the defaults for remaining properties.</p>
-<p>Once your shiny new FreeBSD VM is up and running and you access via SSH, the first thing I recommend is changing the default SSH server port. Edit <code>/etc/ssh/sshd_config</code> and change <code>Port</code> from 22 to some other higher port number. This minimizes random scans from showing up in <code>/var/log/auth.log</code>. Now reboot your VM and add a custom Network Security Group (<code>Microsoft.Network/networkSecurityGroups</code>) inbound port rule that matches the new port you chose. You can also change the existing SSH rule from Allow to Deny (or simply delete it).</p>
-<h4>Adding a public IPv6 address</h4>
-<p>By default, Azure will create an IPv4-only VM. For dual-stack, what you need to do is add a new IP configuration to your network interface that has an IPv6 address. The first step is to add an IPv6 address space to your Virtual Network (<code>Microsoft.Network/virtualNetworks</code> aka VNET) address spaces. I added <code>2404:f800:0:1::/64</code>.</p>
-<p>Next, edit your default VNET subnet and enable IPv6 addresses. Once set, you can then edit the subnet settings again and add a public IPv6 address. I chose a dynamic IPv6 address and it has been stable.</p>
-<h4>Configuring FreeBSD for IPv6</h4>
-<p>Now that the VM configuration has IPv6 set, we next need to configure our FreeBSD VM to receive an IPv6 address from Azure. An Azure VM first needs an internal IPv6 address provided via the address space we added to our VNET address spaces and IPv6 IP configuration. We first need to run <code>sudo pkg install dual-dhclient</code>.</p>
-<p>Once you have <code>dual-dhclient</code> installed, add the following to <code>/etc/rc.conf</code>:</p>
-<div class="highlight"><pre><span></span><code>ipv6_activate_all_interfaces=&quot;YES&quot;
-ifconfig_hn0_ipv6=&quot;SYNCDHCP accept_rtadv&quot;
-dhclient_program=&quot;/usr/local/sbin/dual-dhclient&quot;
-</code></pre></div>
-
-<p>Now reboot and when you log back in do an <code>ifconfig hn0</code> and you'll see the internal IPv6 we configured, e.g. <code>inet6 2404:f800:0:1::4 prefixlen 128</code>. The VM now has a local IP that gets you to the VNET's public facing IPv6 that you previously configured in the VNET subnet. Do a simple test:</p>
-<div class="highlight"><pre><span></span><code><span class="n">ping6</span><span class="w"> </span><span class="o">-</span><span class="n">c</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="n">freebsd</span><span class="p">.</span><span class="n">org</span>
-<span class="n">PING</span><span class="p">(</span><span class="mi">56</span><span class="o">=</span><span class="mi">40</span><span class="o">+</span><span class="mi">8</span><span class="o">+</span><span class="mi">8</span><span class="w"> </span><span class="n">bytes</span><span class="p">)</span><span class="w"> </span><span class="mi">2404</span><span class="o">:</span><span class="n">f800</span><span class="o">:</span><span class="mi">0</span><span class="o">:</span><span class="mi">1</span><span class="o">::</span><span class="mi">4</span><span class="w"> </span><span class="o">--&gt;</span><span class="w"> </span><span class="mi">2610</span><span class="o">:</span><span class="mi">1</span><span class="n">c1</span><span class="o">:</span><span class="mi">1</span><span class="o">:</span><span class="mi">606</span><span class="n">c</span><span class="o">::</span><span class="mi">50</span><span class="o">:</span><span class="mi">15</span>
-<span class="mi">16</span><span class="w"> </span><span class="n">bytes</span><span class="w"> </span><span class="n">from</span><span class="w"> </span><span class="mi">2610</span><span class="o">:</span><span class="mi">1</span><span class="n">c1</span><span class="o">:</span><span class="mi">1</span><span class="o">:</span><span class="mi">606</span><span class="n">c</span><span class="o">::</span><span class="mi">50</span><span class="o">:</span><span class="mi">15</span><span class="p">,</span><span class="w"> </span><span class="n">icmp_seq</span><span class="o">=</span><span class="mi">0</span><span class="w"> </span><span class="n">hlim</span><span class="o">=</span><span class="mi">43</span><span class="w"> </span><span class="n">time</span><span class="o">=</span><span class="mf">69.095</span><span class="w"> </span><span class="n">ms</span>
-<span class="mi">16</span><span class="w"> </span><span class="n">bytes</span><span class="w"> </span><span class="n">from</span><span class="w"> </span><span class="mi">2610</span><span class="o">:</span><span class="mi">1</span><span class="n">c1</span><span class="o">:</span><span class="mi">1</span><span class="o">:</span><span class="mi">606</span><span class="n">c</span><span class="o">::</span><span class="mi">50</span><span class="o">:</span><span class="mi">15</span><span class="p">,</span><span class="w"> </span><span class="n">icmp_seq</span><span class="o">=</span><span class="mi">1</span><span class="w"> </span><span class="n">hlim</span><span class="o">=</span><span class="mi">43</span><span class="w"> </span><span class="n">time</span><span class="o">=</span><span class="mf">68.517</span><span class="w"> </span><span class="n">ms</span>
-<span class="mi">16</span><span class="w"> </span><span class="n">bytes</span><span class="w"> </span><span class="n">from</span><span class="w"> </span><span class="mi">2610</span><span class="o">:</span><span class="mi">1</span><span class="n">c1</span><span class="o">:</span><span class="mi">1</span><span class="o">:</span><span class="mi">606</span><span class="n">c</span><span class="o">::</span><span class="mi">50</span><span class="o">:</span><span class="mi">15</span><span class="p">,</span><span class="w"> </span><span class="n">icmp_seq</span><span class="o">=</span><span class="mi">2</span><span class="w"> </span><span class="n">hlim</span><span class="o">=</span><span class="mi">43</span><span class="w"> </span><span class="n">time</span><span class="o">=</span><span class="mf">68.514</span><span class="w"> </span><span class="n">ms</span>
-
-<span class="o">---</span><span class="w"> </span><span class="n">freebsd</span><span class="p">.</span><span class="n">org</span><span class="w"> </span><span class="n">ping</span><span class="w"> </span><span class="n">statistics</span><span class="w"> </span><span class="o">---</span>
-<span class="mi">3</span><span class="w"> </span><span class="n">packets</span><span class="w"> </span><span class="n">transmitted</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="n">packets</span><span class="w"> </span><span class="n">received</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="o">%</span><span class="w"> </span><span class="n">packet</span><span class="w"> </span><span class="n">loss</span>
-</code></pre></div>
-
-<p>Cool, we have a dual-stack VM. I can now create IPv6 connections from my Azure VM to my home lab, mainly for specific cases to run my external website.</p>
-<h4>FreeBSD with .NET and ZFS</h4>
-<p>FreeBSD has support for .NET which is how I was able to have this option for my VM. When I wrote this, I was running FreeBSD 14.1 and using .NET 8. Microsoft's .NET has been open source and supported on Linux for many years now. It's great to see the FreeBSD community and Microsoft work together to make .NET development available for FreeBSD.</p>
-<p>I also really appreciate having ZFS on my VM. I can now create ZFS snapshots and do simple backups.</p>
-<h4>Adding an SSH tunnel to connect to the FreeBSD VM</h4>
-<p>My home firewall (OpenBSD) passes in an IPv6 port to a FreeBSD jail that runs a hardened sshd daemon on my IPv6-only home lab VLAN. When I'm away, my laptop usually has IPv6 via my tethered mobile phone and I can connect directly via IPv6. I can also use an IPv6 SSH tunnel for things like connecting remotely to Home Assistant or RDP'ing into my home Windows client. When I can't get IPv6 when away, I need a way to bridge from IPv4 to IPv6.</p>
-<p>What I'll show is how I add an SSH reverse tunnel from my home lab SSH server to my FreeBSD VM. I created an A record for my domain (e.g. subdomain.idatum.net) that has the public IPv4 for the FreeBSD VM. I don't need to add an AAAA record, since the point of this is an IPv4 to IPv6 bridge. With NAT64/DNS64 on my IPv6-only VLAN, my SSH server uses an IPv6 with the DNS64 prefix I have in my OpenBSD router <code>/var/unbound/etc/unbound.conf</code>:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># DNS64</span>
-<span class="n">module-config:</span> <span class="s">&quot;dns64 iterator&quot;</span>
-<span class="n">dns64-prefix:</span> <span class="mi">64</span>:<span class="n">ff9b::</span>/<span class="mi">96</span>
-</code></pre></div>
-
-<p>And on the same OpenBSD router, <code>/etc/pf.conf</code>:</p>
-<div class="highlight"><pre><span></span><code><span class="gh">#</span> NAT64
-pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
-</code></pre></div>
-
-<p>I add my home SSH server's client public SSH key to my FreeBSD VM's <code>~/.ssh/authorized_keys</code>. This let's the SSH server connect using SSH key auth.</p>
-<p>I wrote a script that sets up the reverse SSH tunnel, running as the same user that has the SSH client key configured on the VM, something like this:</p>
-<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span class="normal"> 1</span>
-<span class="normal"> 2</span>
-<span class="normal"> 3</span>
-<span class="normal"> 4</span>
-<span class="normal"> 5</span>
-<span class="normal"> 6</span>
-<span class="normal"> 7</span>
-<span class="normal"> 8</span>
-<span class="normal"> 9</span>
-<span class="normal">10</span>
-<span class="normal">11</span>
-<span class="normal">12</span>
-<span class="normal">13</span>
-<span class="normal">14</span>
-<span class="normal">15</span>
-<span class="normal">16</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="ch">#!/bin/sh</span>
-<span class="c1"># Open local port on FreeBSD VM to connect to this home SSH server.</span>
-<span class="nv">host</span><span class="o">=</span>my-freebsd-vm-dns-name.net
-<span class="nv">home_lab_ssh_port</span><span class="o">=</span><span class="m">22</span>
-<span class="nv">vm_ssh_port</span><span class="o">=</span><span class="m">5001</span>
-<span class="nv">vm_local_port</span><span class="o">=</span><span class="m">5002</span>
-
-<span class="k">while</span><span class="w"> </span><span class="o">[</span><span class="w"> </span><span class="nb">true</span><span class="w"> </span><span class="o">]</span>
-<span class="k">do</span>
-<span class="w">    </span>ssh<span class="w"> </span>-NT<span class="w"> </span>-R<span class="w"> </span><span class="nv">$vm_local_port</span>:localhost:<span class="nv">$home_lab_ssh_port</span><span class="w"> </span><span class="se">\</span>
-<span class="w">        </span>-o<span class="w"> </span><span class="nv">ExitOnForwardFailure</span><span class="o">=</span>yes<span class="w"> </span><span class="se">\</span>
-<span class="w">        </span>-o<span class="w"> </span><span class="nv">ServerAliveInterval</span><span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
-<span class="w">        </span>-o<span class="w"> </span><span class="nv">ServerAliveCountMax</span><span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
-<span class="w">        </span>-6<span class="w"> </span>-p<span class="w"> </span><span class="nv">$vm_ssh_port</span><span class="w"> </span>azureuser@<span class="nv">$host</span>
-<span class="w">    </span>sleep<span class="w"> </span><span class="m">1</span>
-<span class="k">done</span>
-</code></pre></div></td></tr></table></div>
-
-<p><code>host</code> is the DNS record that has my VM's IPv4 address. <code>home_lab_ssh_port</code> is the SSH port to access my home lab. <code>vm_ssh_port</code> is the port we configured earlier in the VM's NSG rules and sshd_config. <code>vm_local_port</code> is the port available at localhost on my VM.</p>
-<p>Once the SSH reverse tunnel is set up, I can log in from my FreeBSD VM to my home SSH server. From a remote client, I use something like <code>ssh -t -p 5001 azureuser@my-freebsd-vm-dns-name.net ssh -p 5002 my_home_username@localhost</code> to log into the home SSH server directly. This connects to my FreeBSD VM and creates a terminal session via ssh with my home SSH server. Another way is to use the <code>-J</code> SSH jump host option. The advantage of this is you can use key auth with your local public key in your home SSH <code>authorized_keys</code>, something like this: <code>ssh -J azureuser@my-freebsd-vm-dns-name.net:5001 -p 5002 my_home_username@localhost</code>. Either way, I'm in via IPv4!</p>
+    <p>Here are my notes on self hosting [Ente Photos[(https://ente.io) using <a href="https://freebsd.org">FreeBSD</a> and <a href="https://min.io">MinIO</a> as the S3 compatible backing blob store.</p>
+<p><a href="https://ente.io">Ente Photos</a> is an app with a backing storage service with a strong focus on privacy. I long ago decided to not use Google Photos on my Android to backup my phone's photos online. Peronsally, I avoid as much as possible Google hoovering up my personal data. I learned about Ente and their support for self hosting its open source server. I decided this was a great way to learn about this service before committing to an Ente storage plan.</p>
+<p>Ultimately I'm really happy with the Ente Android photos app and my self hosted server and I'm going to recommend to my family to switch to an Ente subscription to share photos.</p>
+<h4>Self hosting the Ente server</h4>
+<p>There is good information on Ente's website for how to host everything on Docker and connect their photos app to your personal server.</p>
+<h4>Running MinIO in a FreeBSD jail</h4>
+<p>I already have an Azure VM running FreeBSD for various tasks including running a simple .NET based website for my weather station data. I described <a href="https://www.idatum.net/using-freebsd-zfs-and-ipv6-on-azure.html">running FreeBSD 14 with ZFS on Azure here</a>. </p>
+<h4>Maintenance</h4>
 <h4>Conclusion</h4>
-<p>I'm happy with my Azure FreeBSD VM. When I'm remote and don't have IPv6, I can tunnel through my inexpensive VM and get access to my IPv6-only home lab. And I can also host my simple website I use for checking on my weather station. ZFS gives me the flexibility of dataset snapshots.</p>
-<p>There is only trust from my FreeBSD VM. The FreeBSD VM is not trusted by my home server -- only by creating the SSH reverse tunnel can the VM access my home lab SSH server. My home lab SSH server is running in a FreeBSD jail with stict configuration including SSH key only authorization. Also, I allow list my VM's public IPV6 address in pf.conf for HTTPS connections and block all others -- only my external website can connect for content.</p>
-<p>I'll find other uses for my FreeBSD VM running on Azure. Perhaps I'll start experimenting with sending ZFS snapshots from my home ZFS server for an additional backup.</p>
-<p>Yes, I could have used a Linux VM on any cloud provider. I chose Azure and it delivers a solid FreeBSD VM with that familiar BSD experience.</p>
 <p>Cheers to the BSDs!</p>
     <div class="clear"></div>
 
@@ -135,13 +57,29 @@ pass in inet6 from any to 64:ff9b::/96 af-to inet from ($int_if)
         <a href="../category/bsd.html" rel="tag">BSD</a>
         &nbsp;&middot;
             &nbsp;<a href="../tag/freebsd.html" class="tags">FreeBSD</a>
-            &nbsp;<a href="../tag/dotnet.html" class="tags">dotnet</a>
             &nbsp;<a href="../tag/azure.html" class="tags">Azure</a>
             &nbsp;<a href="../tag/ipv6.html" class="tags selected">IPv6</a>
-            &nbsp;<a href="../tag/ssh.html" class="tags">SSH</a>
-            &nbsp;<a href="../tag/openbsd.html" class="tags">OpenBSD</a>
+            &nbsp;<a href="../tag/minio.html" class="tags">MinIO</a>
+            &nbsp;<a href="../tag/ente.html" class="tags">Ente</a>
     </div>
-</article>            <div class="clear"></div>
+</article>            <section id="content" class="body">
+                <h1>Releated notes</h1>
+                <hr />
+                <ol id="posts-list" class="hfeed">
+        <li><article class="hentry">
+            <header>
+                <h1><a href="../using-freebsd-zfs-and-ipv6-on-azure.html" rel="bookmark"
+                        title="Permalink to Using FreeBSD, ZFS, and IPv6 on Azure">Using FreeBSD, ZFS, and IPv6 on Azure</a></h1>
+            </header>
+
+            <div class="entry-content">
+            <p>Microsoft Azure is a good choice for a low cost VM instance running FreeBSD root on ZFS with IPv6.</p>
+            <br/>
+            </div>
+        </article></li>
+            </ol>
+            </section>
+            <div class="clear"></div>
             <footer>
                 <a rel="me" href="https://mastodon.sdf.org/@joelp">© 2024 mastodon.sdf.org/@joelp</a>
                 <br/>
